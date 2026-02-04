@@ -52,6 +52,26 @@
             0% { box-shadow: 0 0 0 0px rgba(99, 102, 241, 0.4); }
             100% { box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
         }
+
+        /* 選項切換樣式 */
+        .toggle-container {
+            display: flex;
+            background: #1e293b;
+            padding: 4px;
+            border-radius: 12px;
+            margin-top: 10px;
+        }
+        .toggle-btn {
+            flex: 1;
+            padding: 6px;
+            font-size: 12px;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .toggle-btn.selected {
+            background: #6366f1;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -77,17 +97,28 @@
                 開始睡覺
             </button>
 
-            <div class="mt-6 flex justify-center gap-4">
-                <button id="reset-btn" class="text-slate-500 text-xs hidden">重置</button>
-                <button id="auto-sync-toggle" class="text-indigo-400 text-xs flex items-center gap-1">
-                    <span id="sync-status-icon">⚪</span> 自動導出日曆: <span id="sync-status-text">開啟</span>
-                </button>
+            <div class="mt-8 text-left">
+                <div class="flex items-center justify-between mb-2 px-1">
+                    <span class="text-xs text-slate-400">自動同步日曆</span>
+                    <button id="auto-sync-toggle" class="text-xs font-bold text-indigo-400">
+                        <span id="sync-status-icon">🔵</span> <span id="sync-status-text">開啟</span>
+                    </button>
+                </div>
+                
+                <div id="sync-type-selector" class="toggle-container">
+                    <button onclick="setSyncType('apple')" id="type-apple" class="toggle-btn selected text-slate-400">🍎 Apple</button>
+                    <button onclick="setSyncType('google')" id="type-google" class="toggle-btn text-slate-400">🇬 Google</button>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-2 px-1 text-center">設定後，點擊「我醒了」將自動導向日曆</p>
             </div>
+
+            <button id="reset-btn" class="mt-6 text-slate-500 text-[10px] hover:text-slate-300">重置當前計時</button>
         </div>
     </div>
 
     <!-- 趨勢統計頁面 -->
     <div id="page-history" class="page-content hidden max-w-md mx-auto p-4 pt-10">
+        <!-- 此處內容保持不變 -->
         <div class="flex justify-between items-end mb-6">
             <div>
                 <h2 class="text-2xl font-bold">睡眠趨勢</h2>
@@ -139,13 +170,15 @@
 <script>
     let startTime = localStorage.getItem('sleepStartTime');
     let sleepHistory = JSON.parse(localStorage.getItem('sleepHistory') || '[]');
-    let autoSync = localStorage.getItem('autoSync') !== 'false'; // 默認開啟
+    let autoSync = localStorage.getItem('autoSync') !== 'false'; 
+    let syncType = localStorage.getItem('syncType') || 'apple'; // 預設為 apple
     let currentPeriod = 'week';
     let currentMode = 'duration';
     let timerInterval;
 
     function init() {
         updateSyncUI();
+        setSyncType(syncType);
         if (startTime) startUIUpdate();
         else stopUIUpdate();
     }
@@ -153,6 +186,15 @@
     function updateSyncUI() {
         document.getElementById('sync-status-text').innerText = autoSync ? "開啟" : "關閉";
         document.getElementById('sync-status-icon').innerText = autoSync ? "🔵" : "⚪";
+        document.getElementById('sync-type-selector').style.opacity = autoSync ? "1" : "0.3";
+        document.getElementById('sync-type-selector').style.pointerEvents = autoSync ? "auto" : "none";
+    }
+
+    function setSyncType(type) {
+        syncType = type;
+        localStorage.setItem('syncType', type);
+        document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('selected', 'text-white'));
+        document.getElementById('type-' + type).classList.add('selected', 'text-white');
     }
 
     document.getElementById('auto-sync-toggle').onclick = () => {
@@ -169,7 +211,6 @@
         mainBtn.classList.add('pulse');
         document.getElementById('timer-display').classList.remove('hidden');
         document.getElementById('sleep-info').classList.remove('hidden');
-        document.getElementById('reset-btn').classList.remove('hidden');
         document.getElementById('start-time-display').innerText = new Date(parseInt(startTime)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         
         if (timerInterval) clearInterval(timerInterval);
@@ -185,7 +226,6 @@
         mainBtn.classList.add('bg-indigo-600');
         document.getElementById('timer-display').classList.add('hidden');
         document.getElementById('sleep-info').classList.add('hidden');
-        document.getElementById('reset-btn').classList.add('hidden');
         if (timerInterval) clearInterval(timerInterval);
     }
 
@@ -207,53 +247,63 @@
             const end = new Date().getTime();
             const s = parseInt(startTime);
             
-            // 保存數據
+            // 保存數據到本地
             const record = { id: Date.now(), start: s, end: end, duration: parseFloat(((end - s) / 36e5).toFixed(2)) };
             sleepHistory.unshift(record);
             localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
 
-            // 自動觸發日曆 (優化版)
+            // 執行同步邏輯
             if (autoSync) {
-                generateICS(s, end);
+                if (syncType === 'apple') {
+                    generateICS(s, end);
+                } else {
+                    openGoogleCalendar(s, end);
+                }
             }
 
             localStorage.removeItem('sleepStartTime');
             startTime = null;
             stopUIUpdate();
-            
-            setTimeout(() => {
-                alert("起床記錄成功！" + (autoSync ? "\n請確認日曆彈窗以完成同步。" : ""));
-            }, 300);
         }
     };
 
-    // 優化日曆喚起邏輯
+    // 蘋果日曆導出
     function generateICS(s, e) {
         const start = new Date(s), end = new Date(e);
         const fmt = (d) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-        const ics = [
+        
+        const icsContent = [
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
+            "PRODID:-//SleepTracker//NONSGML v1.0//EN",
             "BEGIN:VEVENT",
+            `UID:${Date.now()}@sleeptracker.local`,
+            `DTSTAMP:${fmt(new Date())}`,
             `DTSTART:${fmt(start)}`,
             `DTEND:${fmt(end)}`,
             "SUMMARY:睡眠 🌙",
-            "DESCRIPTION:自動記錄於睡眠 App",
+            "DESCRIPTION:由睡眠記錄器自動生成",
             "END:VEVENT",
             "END:VCALENDAR"
         ].join("\r\n");
         
-        const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
         const url = URL.createObjectURL(blob);
-        
-        // 嘗試直接透過連結跳轉，iOS 有機會直接識別為日曆事件
         const link = document.createElement('a');
         link.href = url;
         link.setAttribute('download', 'sleep.ics');
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 100);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // Google 日曆導向
+    function openGoogleCalendar(s, e) {
+        const start = new Date(s), end = new Date(e);
+        const fmt = (d) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+        const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=睡眠+🌙&details=由睡眠記錄器自動生成&dates=${fmt(start)}/${fmt(end)}`;
+        window.open(url, '_blank');
     }
 
     function showPage(pageId) {
@@ -282,11 +332,9 @@
         const pMs = { week: 7 * 864e5, month: 30 * 864e5, year: 365 * 864e5 }[currentPeriod];
         const filtered = sleepHistory.filter(i => (now - i.start) <= pMs);
         
-        // 平均時長
         const avgDuration = filtered.length ? (filtered.reduce((a, b) => a + b.duration, 0) / filtered.length).toFixed(1) : '0.0';
         document.getElementById('avg-display').innerText = avgDuration + 'h';
 
-        // 平均入睡
         if (filtered.length) {
             let totalMinutes = 0;
             filtered.forEach(record => {
