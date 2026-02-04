@@ -33,7 +33,7 @@
             -webkit-overflow-scrolling: touch;
         }
         .card {
-            background: linear-gradient(145deg, #1e293b, #0f172a);
+            background-color: #1e293b; /* 移除漸變，改為純色 */
             border-radius: 2.5rem;
             padding: 2.5rem;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
@@ -53,25 +53,48 @@
             100% { box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
         }
 
-        /* 選項切換樣式 */
-        .toggle-container {
-            display: flex;
-            background: #1e293b;
-            padding: 4px;
-            border-radius: 12px;
-            margin-top: 10px;
+        /* 列表滑動刪除樣式 */
+        .history-item-wrapper {
+            position: relative;
+            overflow: hidden;
+            border-radius: 1.5rem;
+            margin-bottom: 0.75rem;
         }
-        .toggle-btn {
-            flex: 1;
-            padding: 6px;
-            font-size: 12px;
-            border-radius: 10px;
-            transition: all 0.2s;
+        .history-item-content {
+            position: relative;
+            z-index: 2;
+            transition: transform 0.3s ease;
+            background-color: #1e293b; /* 移除漸變與模糊，改為純色 */
+            cursor: pointer;
         }
-        .toggle-btn.selected {
-            background: #6366f1;
+        .delete-action {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 80px;
+            background-color: #6366f1; /* 修改為紫色 */
             color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+            font-size: 14px;
+            font-weight: bold;
         }
+
+        /* 彈窗樣式 */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+        .modal.active { display: flex; }
     </style>
 </head>
 <body>
@@ -89,7 +112,7 @@
                 00:00:00
             </div>
 
-            <div id="sleep-info" class="mb-8 hidden text-left bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+            <div id="sleep-info" class="mb-8 hidden text-left bg-slate-800 p-4 rounded-2xl border border-slate-700">
                 <p class="text-sm text-slate-400">入睡時間：<span id="start-time-display" class="text-indigo-200"></span></p>
             </div>
 
@@ -99,17 +122,12 @@
 
             <div class="mt-8 text-left">
                 <div class="flex items-center justify-between mb-2 px-1">
-                    <span class="text-xs text-slate-400">自動同步日曆</span>
+                    <span class="text-xs text-slate-400">自動導出蘋果日曆 (.ics)</span>
                     <button id="auto-sync-toggle" class="text-xs font-bold text-indigo-400">
                         <span id="sync-status-icon">🔵</span> <span id="sync-status-text">開啟</span>
                     </button>
                 </div>
-                
-                <div id="sync-type-selector" class="toggle-container">
-                    <button onclick="setSyncType('apple')" id="type-apple" class="toggle-btn selected text-slate-400">🍎 Apple</button>
-                    <button onclick="setSyncType('google')" id="type-google" class="toggle-btn text-slate-400">🇬 Google</button>
-                </div>
-                <p class="text-[10px] text-slate-500 mt-2 px-1 text-center">設定後，點擊「我醒了」將自動導向日曆</p>
+                <p class="text-[10px] text-slate-500 mt-2 px-1 text-center">醒來後將彈出日曆視窗，點擊「加入」即可儲存</p>
             </div>
 
             <button id="reset-btn" class="mt-6 text-slate-500 text-[10px] hover:text-slate-300">重置當前計時</button>
@@ -118,18 +136,18 @@
 
     <!-- 趨勢統計頁面 -->
     <div id="page-history" class="page-content hidden max-w-md mx-auto p-4 pt-10">
-        <!-- 此處內容保持不變 -->
         <div class="flex justify-between items-end mb-6">
             <div>
                 <h2 class="text-2xl font-bold">睡眠趨勢</h2>
-                <p class="text-xs text-slate-500">最近的數據分析</p>
+                <p class="text-xs text-slate-500">左滑紀錄可刪除</p>
             </div>
             <div class="flex gap-2">
-                <button id="export-data-btn" class="text-xs text-indigo-400 bg-indigo-400/10 px-3 py-1.5 rounded-lg border border-indigo-400/20">導出 CSV</button>
+                <button onclick="openManualModal()" class="text-xs text-emerald-400 bg-emerald-400/10 px-3 py-1.5 rounded-lg border border-emerald-400/20">＋ 補記</button>
+                <button id="export-data-btn" class="text-xs text-indigo-400 bg-indigo-400/10 px-3 py-1.5 rounded-lg border border-indigo-400/20">CSV</button>
             </div>
         </div>
 
-        <div class="flex bg-slate-800/50 p-1 rounded-2xl mb-6">
+        <div class="flex bg-slate-800 p-1 rounded-2xl mb-6">
             <button onclick="setPeriod('week')" id="btn-week" class="flex-1 py-2 text-sm rounded-xl transition-all btn-active">週</button>
             <button onclick="setPeriod('month')" id="btn-month" class="flex-1 py-2 text-sm rounded-xl transition-all btn-inactive">月</button>
             <button onclick="setPeriod('year')" id="btn-year" class="flex-1 py-2 text-sm rounded-xl transition-all btn-inactive">年</button>
@@ -145,14 +163,35 @@
                 <p id="avg-start-display" class="text-2xl font-bold text-emerald-300">--:--</p>
             </div>
         </div>
-
-        <div class="mb-6 flex justify-center">
-            <button id="mode-toggle-btn" class="text-xs text-slate-300 bg-slate-700 px-4 py-2 rounded-full active:bg-slate-600 flex items-center gap-2">
-                切換列表顯示：<span id="current-mode-text">睡眠時長</span>
-            </button>
-        </div>
         
-        <div id="history-list" class="space-y-3 pb-10"></div>
+        <div id="history-list" class="space-y-1 pb-10"></div>
+    </div>
+</div>
+
+<!-- 手動新增彈窗 -->
+<div id="manual-modal" class="modal">
+    <div class="bg-slate-800 p-6 rounded-3xl w-full max-w-xs border border-slate-700">
+        <h3 class="text-xl font-bold mb-4 text-center">手動補記睡眠</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="text-xs text-slate-400 block mb-1">日期</label>
+                <input type="date" id="m-date" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-sm text-white">
+            </div>
+            <div class="flex gap-2">
+                <div class="flex-1">
+                    <label class="text-xs text-slate-400 block mb-1">入睡時間</label>
+                    <input type="time" id="m-start" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-sm text-white">
+                </div>
+                <div class="flex-1">
+                    <label class="text-xs text-slate-400 block mb-1">起床時間</label>
+                    <input type="time" id="m-end" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-sm text-white">
+                </div>
+            </div>
+        </div>
+        <div class="mt-6 flex gap-2">
+            <button onclick="closeManualModal()" class="flex-1 py-2 text-sm text-slate-400">取消</button>
+            <button onclick="saveManualRecord()" class="flex-1 py-2 text-sm bg-indigo-600 rounded-xl font-bold">儲存</button>
+        </div>
     </div>
 </div>
 
@@ -171,14 +210,11 @@
     let startTime = localStorage.getItem('sleepStartTime');
     let sleepHistory = JSON.parse(localStorage.getItem('sleepHistory') || '[]');
     let autoSync = localStorage.getItem('autoSync') !== 'false'; 
-    let syncType = localStorage.getItem('syncType') || 'apple'; // 預設為 apple
     let currentPeriod = 'week';
-    let currentMode = 'duration';
     let timerInterval;
 
     function init() {
         updateSyncUI();
-        setSyncType(syncType);
         if (startTime) startUIUpdate();
         else stopUIUpdate();
     }
@@ -186,15 +222,6 @@
     function updateSyncUI() {
         document.getElementById('sync-status-text').innerText = autoSync ? "開啟" : "關閉";
         document.getElementById('sync-status-icon').innerText = autoSync ? "🔵" : "⚪";
-        document.getElementById('sync-type-selector').style.opacity = autoSync ? "1" : "0.3";
-        document.getElementById('sync-type-selector').style.pointerEvents = autoSync ? "auto" : "none";
-    }
-
-    function setSyncType(type) {
-        syncType = type;
-        localStorage.setItem('syncType', type);
-        document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('selected', 'text-white'));
-        document.getElementById('type-' + type).classList.add('selected', 'text-white');
     }
 
     document.getElementById('auto-sync-toggle').onclick = () => {
@@ -247,19 +274,12 @@
             const end = new Date().getTime();
             const s = parseInt(startTime);
             
-            // 保存數據到本地
-            const record = { id: Date.now(), start: s, end: end, duration: parseFloat(((end - s) / 36e5).toFixed(2)) };
+            const duration = parseFloat(((end - s) / 36e5).toFixed(2));
+            const record = { id: Date.now(), start: s, end: end, duration: duration };
             sleepHistory.unshift(record);
             localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
 
-            // 執行同步邏輯
-            if (autoSync) {
-                if (syncType === 'apple') {
-                    generateICS(s, end);
-                } else {
-                    openGoogleCalendar(s, end);
-                }
-            }
+            if (autoSync) generateICS(s, end, duration);
 
             localStorage.removeItem('sleepStartTime');
             startTime = null;
@@ -267,8 +287,7 @@
         }
     };
 
-    // 蘋果日曆導出
-    function generateICS(s, e) {
+    function generateICS(s, e, duration) {
         const start = new Date(s), end = new Date(e);
         const fmt = (d) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
         
@@ -282,7 +301,7 @@
             `DTSTART:${fmt(start)}`,
             `DTEND:${fmt(end)}`,
             "SUMMARY:睡眠 🌙",
-            "DESCRIPTION:由睡眠記錄器自動生成",
+            `DESCRIPTION:睡了 ${duration} 小時`,
             "END:VEVENT",
             "END:VCALENDAR"
         ].join("\r\n");
@@ -298,12 +317,95 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
-    // Google 日曆導向
-    function openGoogleCalendar(s, e) {
-        const start = new Date(s), end = new Date(e);
-        const fmt = (d) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-        const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=睡眠+🌙&details=由睡眠記錄器自動生成&dates=${fmt(start)}/${fmt(end)}`;
-        window.open(url, '_blank');
+    function openManualModal() {
+        const now = new Date();
+        document.getElementById('m-date').value = now.toISOString().split('T')[0];
+        document.getElementById('manual-modal').classList.add('active');
+    }
+    function closeManualModal() { document.getElementById('manual-modal').classList.remove('active'); }
+    function saveManualRecord() {
+        const dateVal = document.getElementById('m-date').value;
+        const startVal = document.getElementById('m-start').value;
+        const endVal = document.getElementById('m-end').value;
+        if(!dateVal || !startVal || !endVal) return alert("請填寫完整");
+
+        let start = new Date(`${dateVal}T${startVal}`).getTime();
+        let end = new Date(`${dateVal}T${endVal}`).getTime();
+        if(end < start) end += 864e5; 
+
+        const duration = parseFloat(((end - start) / 36e5).toFixed(2));
+        const record = { id: Date.now(), start: start, end: end, duration: duration };
+        sleepHistory.unshift(record);
+        sleepHistory.sort((a,b) => b.start - a.start);
+        localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
+        renderHistory();
+        closeManualModal();
+    }
+
+    let touchStartX = 0;
+    function renderHistory() {
+        const now = Date.now();
+        const pMs = { week: 7 * 864e5, month: 30 * 864e5, year: 365 * 864e5 }[currentPeriod];
+        const filtered = sleepHistory.filter(i => (now - i.start) <= pMs);
+        
+        const avgDuration = filtered.length ? (filtered.reduce((a, b) => a + b.duration, 0) / filtered.length).toFixed(1) : '0.0';
+        document.getElementById('avg-display').innerText = avgDuration + 'h';
+        if (filtered.length) {
+            let totalMinutes = 0;
+            filtered.forEach(record => {
+                const date = new Date(record.start);
+                let mins = date.getHours() * 60 + date.getMinutes();
+                if (date.getHours() < 12) mins += 1440; 
+                totalMinutes += mins;
+            });
+            let avgMins = Math.floor(totalMinutes / filtered.length) % 1440;
+            document.getElementById('avg-start-display').innerText = `${String(Math.floor(avgMins / 60)).padStart(2, '0')}:${String(avgMins % 60).padStart(2, '0')}`;
+        }
+
+        const listContainer = document.getElementById('history-list');
+        listContainer.innerHTML = filtered.length ? filtered.map(i => {
+            const start = new Date(i.start);
+            return `
+                <div class="history-item-wrapper" id="item-${i.id}">
+                    <div class="delete-action" onclick="deleteRecord(${i.id})">刪除</div>
+                    <div class="history-item-content p-4 border border-slate-700/50 flex justify-between items-center" 
+                         ontouchstart="handleTS(event)" 
+                         ontouchmove="handleTM(event, ${i.id})" 
+                         ontouchend="handleTE(event, ${i.id})">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold mb-1">${start.toLocaleDateString([], {month:'short', day:'numeric'})}</p>
+                            <p class="text-xl font-bold text-indigo-300">${i.duration} 小時</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-slate-500 mb-1">入睡時間</p>
+                            <p class="text-sm font-semibold text-slate-300">${start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('') : '<p class="text-center text-slate-500 py-10">尚無數據</p>';
+    }
+
+    function handleTS(e) { touchStartX = e.touches[0].clientX; }
+    function handleTM(e, id) {
+        let diff = touchStartX - e.touches[0].clientX;
+        let el = document.querySelector(`#item-${id} .history-item-content`);
+        if (diff > 0 && diff < 100) el.style.transform = `translateX(-${diff}px)`;
+    }
+    function handleTE(e, id) {
+        let diff = touchStartX - e.changedTouches[0].clientX;
+        let el = document.querySelector(`#item-${id} .history-item-content`);
+        if (diff > 50) {
+            el.style.transform = `translateX(-80px)`;
+        } else {
+            el.style.transform = `translateX(0)`;
+        }
+    }
+
+    function deleteRecord(id) {
+        sleepHistory = sleepHistory.filter(i => i.id !== id);
+        localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
+        renderHistory();
     }
 
     function showPage(pageId) {
@@ -321,50 +423,7 @@
         renderHistory();
     }
 
-    document.getElementById('mode-toggle-btn').onclick = () => {
-        currentMode = (currentMode === 'duration' ? 'startTime' : 'duration');
-        document.getElementById('current-mode-text').innerText = (currentMode === 'duration' ? '睡眠時長' : '入睡時間');
-        renderHistory();
-    };
-
-    function renderHistory() {
-        const now = Date.now();
-        const pMs = { week: 7 * 864e5, month: 30 * 864e5, year: 365 * 864e5 }[currentPeriod];
-        const filtered = sleepHistory.filter(i => (now - i.start) <= pMs);
-        
-        const avgDuration = filtered.length ? (filtered.reduce((a, b) => a + b.duration, 0) / filtered.length).toFixed(1) : '0.0';
-        document.getElementById('avg-display').innerText = avgDuration + 'h';
-
-        if (filtered.length) {
-            let totalMinutes = 0;
-            filtered.forEach(record => {
-                const date = new Date(record.start);
-                let mins = date.getHours() * 60 + date.getMinutes();
-                if (date.getHours() < 12) mins += 1440; 
-                totalMinutes += mins;
-            });
-            let avgMins = Math.floor(totalMinutes / filtered.length) % 1440;
-            document.getElementById('avg-start-display').innerText = `${String(Math.floor(avgMins / 60)).padStart(2, '0')}:${String(avgMins % 60).padStart(2, '0')}`;
-        }
-
-        const listContainer = document.getElementById('history-list');
-        listContainer.innerHTML = filtered.length ? filtered.map(i => {
-            const start = new Date(i.start);
-            return `
-                <div class="bg-slate-800/40 p-4 rounded-3xl border border-slate-700/50 flex justify-between items-center">
-                    <div>
-                        <p class="text-[10px] text-slate-500 font-bold mb-1">${start.toLocaleDateString([], {month:'short', day:'numeric'})}</p>
-                        <p class="text-xl font-bold ${currentMode === 'duration' ? 'text-indigo-300' : 'text-emerald-300'}">
-                            ${currentMode === 'duration' ? i.duration + ' h' : start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                        </p>
-                    </div>
-                </div>
-            `;
-        }).join('') : '<p class="text-center text-slate-500 py-10">尚無數據</p>';
-    }
-
-    document.getElementById('reset-btn').onclick = () => { if(confirm("確定重置計時嗎？")) { localStorage.removeItem('sleepStartTime'); startTime = null; stopUIUpdate(); } };
-    
+    document.getElementById('reset-btn').onclick = () => { if(confirm("確定重置當前計時嗎？")) { localStorage.removeItem('sleepStartTime'); startTime = null; stopUIUpdate(); } };
     document.getElementById('export-data-btn').onclick = () => {
         if (!sleepHistory.length) return alert("無數據");
         let csv = "\uFEFF日期,入睡,醒來,時長\n" + sleepHistory.map(i => `${new Date(i.start).toLocaleDateString()},${new Date(i.start).toLocaleTimeString()},${new Date(i.end).toLocaleTimeString()},${i.duration}`).join("\n");
