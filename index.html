@@ -10,7 +10,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="睡眠記錄">
     
-    <!-- 使用穩定的 SVG Data URI 確保主螢幕圖示顯示為 😴 -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😴</text></svg>">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😴</text></svg>">
     
@@ -56,6 +55,13 @@
             100% { box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
         }
 
+        /* 旋轉動畫，用於音樂播放 */
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .rotating { animation: rotate 3s linear infinite; }
+
         .history-item-wrapper {
             position: relative;
             overflow: hidden;
@@ -75,7 +81,7 @@
             top: 0;
             bottom: 0;
             width: 80px;
-            background-color: #6366f1;
+            background-color: #ef4444;
             color: white;
             display: flex;
             align-items: center;
@@ -101,11 +107,22 @@
 <body>
 
 <div class="page-container">
+    <!-- 主計時頁面 -->
     <div id="page-timer" class="page-content flex flex-col items-center justify-center min-h-[80vh] mt-10">
         <div class="card">
-            <div class="mb-8">
-                <h1 class="text-3xl font-bold mb-2">睡眠記錄</h1>
-                <p class="text-slate-400" id="status-text">準備好休息了嗎？</p>
+            <div class="flex justify-between items-start mb-6">
+                <div class="text-left">
+                    <h1 class="text-3xl font-bold mb-1">睡眠記錄</h1>
+                    <p class="text-slate-400 text-sm" id="status-text">準備好休息了嗎？</p>
+                </div>
+                <!-- 助眠音樂按鈕 -->
+                <button id="music-btn" class="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center transition-all active:scale-90 relative">
+                    <span id="music-icon" class="text-xl">🎵</span>
+                    <audio id="sleep-audio">
+                        <source src="[失眠]weightless.mp3" type="audio/mpeg">
+                        您的瀏覽器不支援音訊播放。
+                    </audio>
+                </button>
             </div>
 
             <div id="timer-display" class="text-6xl font-mono font-bold mb-10 text-indigo-400 hidden">
@@ -127,13 +144,13 @@
                         <span id="sync-status-icon">🔵</span> <span id="sync-status-text">開啟</span>
                     </button>
                 </div>
-                <p class="text-[10px] text-slate-500 mt-2 px-1 text-center">醒來後將彈出日曆視窗，點擊「加入」即可儲存</p>
             </div>
 
             <button id="reset-btn" class="mt-6 text-slate-500 text-[10px] hover:text-slate-300">重置當前計時</button>
         </div>
     </div>
 
+    <!-- 歷史數據頁面 -->
     <div id="page-history" class="page-content hidden max-w-md mx-auto p-4 pt-10">
         <div class="flex justify-between items-end mb-6">
             <div>
@@ -154,11 +171,11 @@
 
         <div class="grid grid-cols-2 gap-4 mb-6">
             <div class="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-4 text-center">
-                <p class="text-slate-500 text-[10px] uppercase mb-1">平均時長</p>
+                <p class="text-slate-500 text-[10px] uppercase mb-1">平均時長 (有記錄天數)</p>
                 <p id="avg-display" class="text-2xl font-bold text-indigo-300">0.0h</p>
             </div>
             <div class="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-4 text-center">
-                <p class="text-slate-500 text-[10px] uppercase mb-1">平均入睡</p>
+                <p class="text-slate-500 text-[10px] uppercase mb-1">平均入睡 (排除午休)</p>
                 <p id="avg-start-display" class="text-2xl font-bold text-emerald-300">--:--</p>
             </div>
         </div>
@@ -167,6 +184,7 @@
     </div>
 </div>
 
+<!-- 手動補記彈窗 -->
 <div id="manual-modal" class="modal">
     <div class="bg-slate-800 p-6 rounded-3xl w-full max-w-xs border border-slate-700">
         <h3 class="text-xl font-bold mb-4 text-center">手動補記睡眠</h3>
@@ -193,6 +211,7 @@
     </div>
 </div>
 
+<!-- 底部導覽 -->
 <nav class="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 flex justify-around py-5 z-50">
     <button onclick="showPage('timer')" id="nav-timer" class="nav-item active flex flex-col items-center gap-1">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -210,6 +229,36 @@
     let autoSync = localStorage.getItem('autoSync') !== 'false'; 
     let currentPeriod = 'week';
     let timerInterval;
+
+    // 音樂控制
+    const audio = document.getElementById('sleep-audio');
+    const musicBtn = document.getElementById('music-btn');
+    const musicIcon = document.getElementById('music-icon');
+
+    musicBtn.onclick = () => {
+        if (audio.paused) {
+            audio.play().catch(e => {
+                console.error("播放失敗:", e);
+                // 如果是路徑問題，這裡可以顯示錯誤提示
+            });
+            musicIcon.classList.add('rotating');
+            musicBtn.classList.add('border-indigo-500', 'bg-indigo-900/20');
+        } else {
+            audio.pause();
+            musicIcon.classList.remove('rotating');
+            musicBtn.classList.remove('border-indigo-500', 'bg-indigo-900/20');
+        }
+    };
+
+    audio.onended = () => {
+        musicIcon.classList.remove('rotating');
+        musicBtn.classList.remove('border-indigo-500', 'bg-indigo-900/20');
+    };
+
+    // 音訊載入錯誤處理
+    audio.onerror = () => {
+        console.error("音軌無法載入，請確認檔名是否為 [失眠]weightless.mp3");
+    };
 
     function init() {
         updateSyncUI();
@@ -346,19 +395,28 @@
         const pMs = { week: 7 * 864e5, month: 30 * 864e5, year: 365 * 864e5 }[currentPeriod];
         const filtered = sleepHistory.filter(i => (now - i.start) <= pMs);
         
-        const avgDuration = filtered.length ? (filtered.reduce((a, b) => a + b.duration, 0) / filtered.length).toFixed(1) : '0.0';
+        const uniqueDays = new Set(filtered.map(i => new Date(i.start).toLocaleDateString()));
+        const totalDuration = filtered.reduce((a, b) => a + b.duration, 0);
+        const avgDuration = uniqueDays.size > 0 ? (totalDuration / uniqueDays.size).toFixed(1) : '0.0';
         document.getElementById('avg-display').innerText = avgDuration + 'h';
         
-        if (filtered.length) {
+        const nightRecords = filtered.filter(i => {
+            const h = new Date(i.start).getHours();
+            return h >= 20 || h < 12;
+        });
+
+        if (nightRecords.length) {
             let totalMinutes = 0;
-            filtered.forEach(record => {
+            nightRecords.forEach(record => {
                 const date = new Date(record.start);
                 let mins = date.getHours() * 60 + date.getMinutes();
                 if (date.getHours() < 12) mins += 1440; 
                 totalMinutes += mins;
             });
-            let avgMins = Math.floor(totalMinutes / filtered.length) % 1440;
+            let avgMins = Math.floor(totalMinutes / nightRecords.length) % 1440;
             document.getElementById('avg-start-display').innerText = `${String(Math.floor(avgMins / 60)).padStart(2, '0')}:${String(avgMins % 60).padStart(2, '0')}`;
+        } else {
+            document.getElementById('avg-start-display').innerText = '--:--';
         }
 
         const listContainer = document.getElementById('history-list');
