@@ -451,7 +451,10 @@
     function exportCSV() {
         if (sleepHistory.length === 0) return alert("沒有數據可導出");
         
-        // CSV 標題
+        // 1. 克隆並按時間由舊到新排序 (Ascending)
+        const sortedHistory = [...sleepHistory].sort((a, b) => a.start - b.start);
+        
+        // 2. 生成 CSV 內容
         let csvContent = "\uFEFF"; // 加入 UTF-8 BOM 防止 Excel 亂碼
         csvContent += "入睡日期,入睡時間,醒來日期,醒來時間,時長\n";
         
