@@ -447,18 +447,18 @@
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
-    // --- 導出 CSV ---
+    // --- 導出 CSV (已修改排序) ---
     function exportCSV() {
         if (sleepHistory.length === 0) return alert("沒有數據可導出");
         
         // 1. 克隆並按時間由舊到新排序 (Ascending)
         const sortedHistory = [...sleepHistory].sort((a, b) => a.start - b.start);
-        
+
         // 2. 生成 CSV 內容
-        let csvContent = "\uFEFF"; // 加入 UTF-8 BOM 防止 Excel 亂碼
+        let csvContent = "\uFEFF"; 
         csvContent += "入睡日期,入睡時間,醒來日期,醒來時間,時長\n";
         
-        sleepHistory.forEach(item => {
+        sortedHistory.forEach(item => {
             const startDay = formatToDate(item.start);
             const startTime = formatToTime(item.start);
             const endDay = formatToDate(item.end);
