@@ -21,7 +21,7 @@
             min-height: 100vh;
             margin: 0;
             padding-bottom: 90px;
-            overflow: hidden; /* 防止雙重滾動 */
+            overflow: hidden; 
         }
         .page-container {
             height: 100vh;
@@ -53,7 +53,6 @@
         }
         .rotating { animation: rotate 3s linear infinite; }
 
-        /* 滑動刪除相關樣式 */
         .swipe-container {
             position: relative;
             overflow: hidden;
@@ -152,12 +151,12 @@
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold">睡眠分析</h2>
             <div class="flex gap-2">
-                <button onclick="exportCSV()" class="p-2 bg-slate-800 rounded-lg text-xs text-slate-300">導出</button>
-                <button onclick="openManualModal()" class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xl">+</button>
+                <button onclick="exportCSV()" class="p-2 bg-slate-800 rounded-lg text-xs text-slate-300 active:scale-95 transition-transform">導出數據</button>
+                <button onclick="openManualModal()" class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xl active:scale-95 transition-transform">+</button>
             </div>
         </div>
 
-        <!-- 周期切換 (置頂) -->
+        <!-- 周期切換 -->
         <div class="flex gap-2 mb-4">
             <button onclick="setPeriod('week')" id="p-week" class="flex-1 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-500 text-white shadow-lg shadow-indigo-500/20">本週</button>
             <button onclick="setPeriod('month')" id="p-month" class="flex-1 py-2 rounded-xl text-xs font-bold transition-all bg-slate-800 text-slate-400">本月</button>
@@ -229,7 +228,6 @@
     const musicIcon = document.getElementById('music-icon');
     audio.src = REMOTE_AUDIO_URL;
 
-    // --- 核心變數 ---
     let startTime = localStorage.getItem('sleepStartTime');
     let sleepHistory = JSON.parse(localStorage.getItem('sleepHistory') || '[]');
     let autoSync = localStorage.getItem('autoSync') !== 'false'; 
@@ -341,8 +339,6 @@
         const filtered = getFilteredHistory();
         const listContainer = document.getElementById('history-list');
         
-        // 1. 計算平均時長 (排除沒有數據的日期)
-        // 使用 Map 按日期分組，確保同一天的多次睡眠會合併或至少算出「有記錄的天數」
         const dayMap = new Map();
         filtered.forEach(item => {
             const dateStr = new Date(item.start).toLocaleDateString();
@@ -353,10 +349,9 @@
         const avgDur = dayMap.size > 0 ? (totalDuration / dayMap.size).toFixed(1) : '0.0';
         document.getElementById('avg-duration').innerHTML = `${avgDur}<span class="text-sm font-normal text-indigo-300 ml-1">h</span>`;
         
-        // 2. 計算平均入睡時間 (排除 12:00 - 20:00 的午覺)
         const nightSleeps = filtered.filter(item => {
             const hour = new Date(item.start).getHours();
-            return hour < 12 || hour >= 20; // 晚上 8 點後到中午 12 點前算入睡
+            return hour < 12 || hour >= 20; 
         });
 
         if (nightSleeps.length > 0) {
@@ -365,7 +360,6 @@
                 const d = new Date(item.start);
                 let h = d.getHours();
                 let m = d.getMinutes();
-                // 處理跨午夜：凌晨 0-12 點的時間加 24 小時來計算平均，例如 01:00 算作 25:00
                 const calcH = h < 12 ? h + 24 : h;
                 totalSeconds += (calcH * 3600) + (m * 60);
             });
@@ -377,7 +371,6 @@
             document.getElementById('avg-bedtime').innerText = '--:--';
         }
 
-        // 3. 渲染列表 (支持滑動)
         if (filtered.length === 0) {
             listContainer.innerHTML = '<p class="text-center text-slate-500 py-10">尚無睡眠記錄</p>';
             return;
@@ -415,7 +408,6 @@
     function handleTouchStart(e, id) {
         touchStartX = e.touches[0].clientX;
         currentSwipeId = id;
-        // 重置其他已滑開的
         document.querySelectorAll('.swipe-content').forEach(el => {
             if (el.parentElement.id !== `item-${id}`) el.style.transform = 'translateX(0px)';
         });
@@ -425,23 +417,63 @@
         const x = e.touches[0].clientX;
         const diff = x - touchStartX;
         const content = document.querySelector(`#item-${id} .swipe-content`);
-        if (diff < 0 && diff > -100) { // 只允許左滑
-            content.style.transform = `translateX(${diff}px)`;
-        }
+        if (diff < 0 && diff > -100) content.style.transform = `translateX(${diff}px)`;
     }
 
     function handleTouchEnd(e, id) {
         const x = e.changedTouches[0].clientX;
         const diff = x - touchStartX;
         const content = document.querySelector(`#item-${id} .swipe-content`);
-        if (diff < -50) {
-            content.style.transform = 'translateX(-80px)';
-        } else {
-            content.style.transform = 'translateX(0px)';
-        }
+        if (diff < -50) content.style.transform = 'translateX(-80px)';
+        else content.style.transform = 'translateX(0px)';
     }
 
-    // --- 其他功能 ---
+    // --- 數據格式化工具 ---
+    function formatToDate(ms) {
+        const d = new Date(ms);
+        return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function formatToTime(ms) {
+        const d = new Date(ms);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+    }
+
+    function formatDuration(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // --- 導出 CSV ---
+    function exportCSV() {
+        if (sleepHistory.length === 0) return alert("沒有數據可導出");
+        
+        // CSV 標題
+        let csvContent = "\uFEFF"; // 加入 UTF-8 BOM 防止 Excel 亂碼
+        csvContent += "入睡日期,入睡時間,醒來日期,醒來時間,時長\n";
+        
+        sleepHistory.forEach(item => {
+            const startDay = formatToDate(item.start);
+            const startTime = formatToTime(item.start);
+            const endDay = formatToDate(item.end);
+            const endTime = formatToTime(item.end);
+            const durationStr = formatDuration(item.end - item.start);
+            
+            csvContent += `${startDay},${startTime},${endDay},${endTime},${durationStr}\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const fileName = `睡眠記錄_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+        
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+    }
+
     function openManualModal() { document.getElementById('manual-modal').classList.add('active'); }
     function closeManualModal() { document.getElementById('manual-modal').classList.remove('active'); }
     
@@ -463,18 +495,6 @@
         sleepHistory = sleepHistory.filter(i => i.id !== id);
         localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
         renderHistory();
-    }
-
-    function exportCSV() {
-        let csv = "入睡時間,醒來時間,時長(小時)\n";
-        sleepHistory.forEach(item => {
-            csv += `${new Date(item.start).toLocaleString()},${new Date(item.end).toLocaleString()},${item.duration}\n`;
-        });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `睡眠記錄_${new Date().toLocaleDateString()}.csv`;
-        link.click();
     }
 
     function showPage(pageId) {
