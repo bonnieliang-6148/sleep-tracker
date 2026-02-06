@@ -151,7 +151,7 @@
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold">睡眠分析</h2>
             <div class="flex gap-2">
-                <button onclick="exportCSV()" class="p-2 bg-slate-800 rounded-lg text-xs text-slate-300 active:scale-95 transition-transform">導出數據</button>
+                <button onclick="exportCSV()" class="p-2 bg-slate-800 rounded-lg text-xs text-slate-300 active:scale-95 transition-transform">導出</button>
                 <button onclick="openManualModal()" class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xl active:scale-95 transition-transform">+</button>
             </div>
         </div>
@@ -303,7 +303,6 @@
             'END:VCALENDAR'
         ].join('\r\n');
 
-
         const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -327,7 +326,7 @@
             
             // 自動同步日曆邏輯
             if (autoSync) {
-                generateICS(startMs, end);
+                generateICS(startMs, end, duration);
             }
             
             localStorage.removeItem('sleepStartTime');
@@ -500,7 +499,7 @@
         if (duration <= 0) return alert("時間無效");
         sleepHistory.unshift({ id: Date.now(), start, end, duration });
         localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
-        if (autoSync) generateICS(start, end);
+        if (autoSync) generateICS(start, end, duration);
         closeManualModal();
         renderHistory();
     }
