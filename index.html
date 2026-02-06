@@ -156,14 +156,12 @@
             </div>
         </div>
 
-        <!-- 周期切換 -->
         <div class="flex gap-2 mb-4">
             <button onclick="setPeriod('week')" id="p-week" class="flex-1 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-500 text-white shadow-lg shadow-indigo-500/20">本週</button>
             <button onclick="setPeriod('month')" id="p-month" class="flex-1 py-2 rounded-xl text-xs font-bold transition-all bg-slate-800 text-slate-400">本月</button>
             <button onclick="setPeriod('year')" id="p-year" class="flex-1 py-2 rounded-xl text-xs font-bold transition-all bg-slate-800 text-slate-400">全年</button>
         </div>
 
-        <!-- 統計卡片 -->
         <div class="stat-card">
             <div class="grid grid-cols-2 gap-6">
                 <div>
@@ -178,9 +176,7 @@
             <p class="mt-4 text-[10px] text-indigo-300/60">* 入睡時間已排除 12:00-20:00 的午覺</p>
         </div>
 
-        <div id="history-list" class="space-y-1">
-            <!-- 歷史列表將在這裡渲染 -->
-        </div>
+        <div id="history-list" class="space-y-1"></div>
     </div>
 </div>
 
@@ -217,7 +213,6 @@
 </nav>
 
 <script>
-    // GitHub 音樂配置
     const GITHUB_USERNAME = "bonnieliang-6148"; 
     const REPO_NAME = "sleep-tracker"; 
     const FILE_PATH = "[失眠]weightless.mp3"; 
@@ -240,7 +235,6 @@
         renderHistory();
     }
 
-    // --- 音樂功能 ---
     async function toggleMusic() {
         try {
             if (audio.paused) {
@@ -257,7 +251,6 @@
     }
     musicBtn.onclick = (e) => { e.preventDefault(); toggleMusic(); };
 
-    // --- 計時器功能 ---
     function startUIUpdate() {
         document.getElementById('status-text').innerText = "夢境中，請放鬆...";
         const mainBtn = document.getElementById('main-btn');
@@ -292,6 +285,31 @@
         document.getElementById('timer-display').innerText = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
+    // --- 日曆同步關鍵函數 ---
+    function generateICS(startMs, endMs) {
+        const format = (ms) => {
+            const d = new Date(ms);
+            return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        };
+        const icsContent = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'BEGIN:VEVENT',
+            `DTSTART:${format(startMs)}`,
+            `DTEND:${format(endMs)}`,
+            'SUMMARY:睡眠記錄 😴',
+            'DESCRIPTION:由睡眠記錄器自動生成',
+            'END:VEVENT',
+            'END:VCALENDAR'
+        ].join('\r\n');
+
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `sleep_event_${Date.now()}.ics`;
+        link.click();
+    }
+
     document.getElementById('main-btn').onclick = () => {
         if (!startTime) {
             startTime = new Date().getTime();
@@ -299,9 +317,18 @@
             startUIUpdate();
         } else {
             const end = new Date().getTime();
-            const duration = parseFloat(((end - parseInt(startTime)) / 36e5).toFixed(2));
-            sleepHistory.unshift({ id: Date.now(), start: parseInt(startTime), end, duration });
+            const startMs = parseInt(startTime);
+            const duration = parseFloat(((end - startMs) / 36e5).toFixed(2));
+            
+            // 保存數據
+            sleepHistory.unshift({ id: Date.now(), start: startMs, end, duration });
             localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
+            
+            // 自動同步日曆邏輯
+            if (autoSync) {
+                generateICS(startMs, end);
+            }
+            
             localStorage.removeItem('sleepStartTime');
             startTime = null;
             stopUIUpdate();
@@ -309,7 +336,6 @@
         }
     };
 
-    // --- 統計與趨勢邏輯 ---
     function setPeriod(p) {
         currentPeriod = p;
         document.querySelectorAll('#page-history .flex button').forEach(b => {
@@ -401,7 +427,6 @@
         }).join('');
     }
 
-    // --- 滑動刪除邏輯 ---
     let touchStartX = 0;
     let currentSwipeId = null;
 
@@ -428,7 +453,6 @@
         else content.style.transform = 'translateX(0px)';
     }
 
-    // --- 數據格式化工具 ---
     function formatToDate(ms) {
         const d = new Date(ms);
         return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
@@ -447,33 +471,18 @@
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
-    // --- 導出 CSV (已修改排序) ---
     function exportCSV() {
         if (sleepHistory.length === 0) return alert("沒有數據可導出");
-        
-        // 1. 克隆並按時間由舊到新排序 (Ascending)
         const sortedHistory = [...sleepHistory].sort((a, b) => a.start - b.start);
-
-        // 2. 生成 CSV 內容
         let csvContent = "\uFEFF"; 
         csvContent += "入睡日期,入睡時間,醒來日期,醒來時間,時長\n";
-        
         sortedHistory.forEach(item => {
-            const startDay = formatToDate(item.start);
-            const startTime = formatToTime(item.start);
-            const endDay = formatToDate(item.end);
-            const endTime = formatToTime(item.end);
-            const durationStr = formatDuration(item.end - item.start);
-            
-            csvContent += `${startDay},${startTime},${endDay},${endTime},${durationStr}\n`;
+            csvContent += `${formatToDate(item.start)},${formatToTime(item.start)},${formatToDate(item.end)},${formatToTime(item.end)},${formatDuration(item.end - item.start)}\n`;
         });
-
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
-        const fileName = `睡眠記錄_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
-        
         link.href = URL.createObjectURL(blob);
-        link.download = fileName;
+        link.download = `睡眠記錄_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
         link.click();
     }
 
@@ -490,6 +499,7 @@
         if (duration <= 0) return alert("時間無效");
         sleepHistory.unshift({ id: Date.now(), start, end, duration });
         localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
+        if (autoSync) generateICS(start, end);
         closeManualModal();
         renderHistory();
     }
