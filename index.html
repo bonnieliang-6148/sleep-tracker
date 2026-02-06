@@ -286,7 +286,7 @@
     }
 
     // --- 日曆同步關鍵函數 ---
-    function generateICS(startMs, endMs) {
+    function generateICS(startMs, endMs, duration) {
         const format = (ms) => {
             const d = new Date(ms);
             return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
@@ -297,11 +297,12 @@
             'BEGIN:VEVENT',
             `DTSTART:${format(startMs)}`,
             `DTEND:${format(endMs)}`,
-            'SUMMARY:睡眠記錄 😴',
-            'DESCRIPTION:由睡眠記錄器自動生成',
+            'SUMMARY:💤睡觉',
+            `DESCRIPTION:睡了 ${duration} 小時`,
             'END:VEVENT',
             'END:VCALENDAR'
         ].join('\r\n');
+
 
         const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
         const link = document.createElement('a');
