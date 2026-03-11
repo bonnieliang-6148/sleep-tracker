@@ -1,543 +1,801 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>睡眠記錄器</title>
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="睡眠記錄">
-    
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>😴</text></svg>">
-    
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>睡眠記錄 & 睡前清單</title>
+    <!-- Tailwind CSS Play CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+              mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+            },
+          },
+        },
+      }
+    </script>
+    <style type="text/tailwindcss">
+      @layer base {
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
-            min-height: 100vh;
-            margin: 0;
-            padding-bottom: 90px;
-            overflow: hidden; 
+          @apply bg-[#0f172a] text-slate-50;
         }
-        .page-container {
-            height: 100vh;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        .card {
-            background-color: #1e293b;
-            border-radius: 2.5rem;
-            padding: 2.5rem;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-            width: 90%;
-            max-width: 400px;
-            margin: 2rem auto;
-            text-align: center;
-            border: 1px solid #334155;
-        }
-        .nav-item.active { color: #818cf8; }
-        
-        .pulse { animation: pulse-animation 2s infinite; }
-        @keyframes pulse-animation {
-            0% { box-shadow: 0 0 0 0px rgba(99, 102, 241, 0.4); }
-            100% { box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
-        }
-
-        @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        .rotating { animation: rotate 3s linear infinite; }
-
-        .swipe-container {
-            position: relative;
-            overflow: hidden;
-            border-radius: 1.5rem;
-            margin-bottom: 0.75rem;
-            touch-action: pan-y;
-        }
-        .swipe-content {
-            background-color: #1e293b;
-            border: 1px solid #334155;
-            padding: 1.25rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: relative;
-            z-index: 2;
-            transition: transform 0.3s ease;
-        }
-        .swipe-delete-btn {
-            position: absolute;
-            right: 0;
-            top: 0;
-            bottom: 0;
-            width: 80px;
-            background-color: #ef4444;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.875rem;
-            font-weight: bold;
-            z-index: 1;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #312e81 0%, #1e1b4b 100%);
-            border-radius: 2rem;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        }
-
-        .modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.85);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            padding: 20px;
-        }
-        .modal.active { display: flex; }
+      }
+      .tabular-nums {
+        font-variant-numeric: tabular-nums;
+      }
     </style>
-</head>
-<body>
+    <!-- React & Libraries via CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide-react@latest/dist/lucide-react.min.js"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+    <script src="https://unpkg.com/framer-motion/dist/framer-motion.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
 
-<div class="page-container" id="scroll-root">
-    <!-- 記錄頁面 -->
-    <div id="page-timer" class="page-content flex flex-col items-center justify-center min-h-[85vh]">
-        <div class="card">
-            <div class="flex justify-between items-start mb-6">
-                <div class="text-left">
-                    <h1 class="text-3xl font-bold mb-1">睡眠記錄</h1>
-                    <p class="text-slate-400 text-sm" id="status-text">準備好休息了嗎？</p>
-                </div>
-                <button id="music-btn" class="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center transition-all active:scale-90 relative">
-                    <span id="music-icon" class="text-xl">🎵</span>
-                    <audio id="sleep-audio" preload="auto" crossorigin="anonymous"></audio>
-                </button>
-            </div>
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+      const { 
+        Moon, History, CheckSquare, Music, Play, Square, Plus, 
+        Download, Trash2, CheckCircle2, Circle, TrendingUp, BarChart3, Calendar 
+      } = LucideReact;
+      const { 
+        LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
+        ResponsiveContainer, BarChart, Bar, Cell, LabelList 
+      } = Recharts;
+      const { motion, AnimatePresence } = FramerMotion;
 
-            <div id="timer-display" class="text-6xl font-mono font-bold mb-10 text-indigo-400 hidden">00:00:00</div>
+      // --- Types ---
+      // (TypeScript interfaces are removed for the JS version, but logic remains)
 
-            <div id="sleep-info" class="mb-8 hidden text-left bg-slate-800 p-4 rounded-2xl border border-slate-700">
-                <p class="text-sm text-slate-400">入睡時間：<span id="start-time-display" class="text-indigo-200"></span></p>
-            </div>
+      const DEFAULT_CHECKLIST = [
+        { id: '1', text: '🪥刷牙', completed: false },
+        { id: '2', text: '⏰设定闹钟', completed: false },
+        { id: '3', text: '💡关灯', completed: false },
+        { id: '4', text: '📱放好手机', completed: false },
+      ];
 
-            <button id="main-btn" class="btn w-full py-6 rounded-3xl bg-indigo-600 hover:bg-indigo-500 text-white text-2xl font-semibold shadow-xl transition-all active:scale-95">
-                開始睡覺
-            </button>
+      function App() {
+        const [activeTab, setActiveTab] = useState('checklist');
+        const [historySubTab, setHistorySubTab] = useState('sleep');
+        const [startTime, setStartTime] = useState(null);
+        const [history, setHistory] = useState([]);
+        const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST);
+        const [timerDisplay, setTimerDisplay] = useState('00:00:00');
+        const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+        const [autoSync, setAutoSync] = useState(true);
+        const [period, setPeriod] = useState('week');
+        const [showManualModal, setShowManualModal] = useState(false);
+        const [manualStart, setManualStart] = useState('');
+        const [manualEnd, setManualEnd] = useState('');
+        const [lastRecord, setLastRecord] = useState(null);
 
-            <div class="mt-8 flex justify-between items-center px-1">
-                <span class="text-xs text-slate-400 italic">自動導出日曆</span>
-                <button id="auto-sync-toggle" class="text-xs font-bold text-indigo-400">
-                    <span id="sync-status-icon">🔵</span> <span id="sync-status-text">開啟</span>
-                </button>
-            </div>
+        const audioRef = useRef(null);
+        const timerIntervalRef = useRef(null);
 
-            <button id="reset-btn" class="mt-6 text-slate-500 text-[10px] hover:text-slate-300">重置當前計時</button>
-        </div>
-    </div>
-    
-    <!-- 趨勢分頁 -->
-    <div id="page-history" class="page-content hidden max-w-md mx-auto p-4 pt-10 pb-32">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold">睡眠分析</h2>
-            <div class="flex gap-2">
-                <button onclick="exportCSV()" class="p-2 bg-slate-800 rounded-lg text-xs text-slate-300 active:scale-95 transition-transform">導出</button>
-                <button onclick="openManualModal()" class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xl active:scale-95 transition-transform">+</button>
-            </div>
-        </div>
+        // --- Initialization ---
+        useEffect(() => {
+          const savedStartTime = localStorage.getItem('sleepStartTime');
+          if (savedStartTime) setStartTime(parseInt(savedStartTime));
 
-        <div class="flex gap-2 mb-4">
-            <button onclick="setPeriod('week')" id="p-week" class="flex-1 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-500 text-white shadow-lg shadow-indigo-500/20">本週</button>
-            <button onclick="setPeriod('month')" id="p-month" class="flex-1 py-2 rounded-xl text-xs font-bold transition-all bg-slate-800 text-slate-400">本月</button>
-            <button onclick="setPeriod('year')" id="p-year" class="flex-1 py-2 rounded-xl text-xs font-bold transition-all bg-slate-800 text-slate-400">全年</button>
-        </div>
+          const savedHistory = localStorage.getItem('sleepHistory');
+          if (savedHistory) setHistory(JSON.parse(savedHistory));
 
-        <div class="stat-card">
-            <div class="grid grid-cols-2 gap-6">
-                <div>
-                    <p class="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mb-1">平均睡眠時長</p>
-                    <p class="text-3xl font-bold" id="avg-duration">0.0<span class="text-sm font-normal text-indigo-300 ml-1">h</span></p>
-                </div>
-                <div>
-                    <p class="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mb-1">平均入睡時間</p>
-                    <p class="text-3xl font-bold" id="avg-bedtime">--:--</p>
-                </div>
-            </div>
-            <p class="mt-4 text-[10px] text-indigo-300/60">* 入睡時間已排除 12:00-20:00 的午覺</p>
-        </div>
+          const savedChecklist = localStorage.getItem('bedtimeChecklist');
+          if (savedChecklist) setChecklist(JSON.parse(savedChecklist));
 
-        <div id="history-list" class="space-y-1"></div>
-    </div>
-</div>
+          const savedAutoSync = localStorage.getItem('autoSync');
+          if (savedAutoSync !== null) setAutoSync(savedAutoSync === 'true');
 
-<!-- 手動補錄 Modal -->
-<div id="manual-modal" class="modal">
-    <div class="bg-slate-900 border border-slate-700 p-6 rounded-[2.5rem] w-full max-w-xs shadow-2xl">
-        <h3 class="text-xl font-bold mb-4">手動補錄</h3>
-        <div class="space-y-4">
-            <div>
-                <label class="text-xs text-slate-500 block mb-1">入睡時間</label>
-                <input type="datetime-local" id="m-start" class="w-full bg-slate-800 border-none rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none">
-            </div>
-            <div>
-                <label class="text-xs text-slate-500 block mb-1">醒來時間</label>
-                <input type="datetime-local" id="m-end" class="w-full bg-slate-800 border-none rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none">
-            </div>
-            <div class="flex gap-3 pt-2">
-                <button onclick="closeManualModal()" class="flex-1 py-3 bg-slate-800 rounded-xl text-sm font-semibold">取消</button>
-                <button onclick="saveManualRecord()" class="flex-1 py-3 bg-indigo-600 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/30">儲存</button>
-            </div>
-        </div>
-    </div>
-</div>
+          const lastReset = localStorage.getItem('lastChecklistResetDate');
+          const today = new Date().toLocaleDateString();
+          if (lastReset !== today) {
+            setChecklist(prev => prev.map(item => ({ ...item, completed: false })));
+            localStorage.setItem('lastChecklistResetDate', today);
+          }
+        }, []);
 
-<nav class="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 flex justify-around py-5 z-50">
-    <button onclick="showPage('timer')" id="nav-timer" class="nav-item active flex flex-col items-center gap-1 transition-all">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        <span class="text-[10px] font-semibold">記錄</span>
-    </button>
-    <button onclick="showPage('history')" id="nav-history" class="nav-item text-slate-500 flex flex-col items-center gap-1 transition-all">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2" /></svg>
-        <span class="text-[10px] font-semibold">趨勢</span>
-    </button>
-</nav>
+        // --- Persistence ---
+        useEffect(() => {
+          if (startTime) localStorage.setItem('sleepStartTime', startTime.toString());
+          else localStorage.removeItem('sleepStartTime');
+        }, [startTime]);
 
-<script>
-    const GITHUB_USERNAME = "bonnieliang-6148"; 
-    const REPO_NAME = "sleep-tracker"; 
-    const FILE_PATH = "[失眠]weightless.mp3"; 
-    const REMOTE_AUDIO_URL = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/${encodeURIComponent(FILE_PATH)}`;
+        useEffect(() => {
+          localStorage.setItem('sleepHistory', JSON.stringify(history));
+        }, [history]);
 
-    const audio = document.getElementById('sleep-audio');
-    const musicBtn = document.getElementById('music-btn');
-    const musicIcon = document.getElementById('music-icon');
-    audio.src = REMOTE_AUDIO_URL;
+        useEffect(() => {
+          localStorage.setItem('bedtimeChecklist', JSON.stringify(checklist));
+        }, [checklist]);
 
-    let startTime = localStorage.getItem('sleepStartTime');
-    let sleepHistory = JSON.parse(localStorage.getItem('sleepHistory') || '[]');
-    let autoSync = localStorage.getItem('autoSync') !== 'false'; 
-    let currentPeriod = 'week';
-    let timerInterval;
+        useEffect(() => {
+          localStorage.setItem('autoSync', autoSync.toString());
+        }, [autoSync]);
 
-    function init() {
-        updateSyncUI();
-        if (startTime) startUIUpdate();
-        renderHistory();
-    }
+        // --- Timer Logic ---
+        useEffect(() => {
+          if (startTime) {
+            timerIntervalRef.current = window.setInterval(() => {
+              const diff = Date.now() - startTime;
+              const h = Math.floor(diff / 3600000);
+              const m = Math.floor((diff % 3600000) / 60000);
+              const s = Math.floor((diff % 60000) / 1000);
+              setTimerDisplay(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+            }, 1000);
+          } else {
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            setTimerDisplay('00:00:00');
+          }
+          return () => {
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+          };
+        }, [startTime]);
 
-    async function toggleMusic() {
-        try {
-            if (audio.paused) {
-                if (!audio.src || audio.src === window.location.href) audio.src = REMOTE_AUDIO_URL;
-                await audio.play();
-                musicIcon.classList.add('rotating');
-                musicBtn.classList.add('border-indigo-500', 'bg-indigo-900/20');
-            } else {
-                audio.pause();
-                musicIcon.classList.remove('rotating');
-                musicBtn.classList.remove('border-indigo-500', 'bg-indigo-900/20');
-            }
-        } catch (e) { console.error("播放失敗:", e); }
-    }
-    musicBtn.onclick = (e) => { e.preventDefault(); toggleMusic(); };
+        // --- Handlers ---
+        const handleStartSleep = () => {
+          const now = Date.now();
+          setStartTime(now);
+        };
 
-    function startUIUpdate() {
-        document.getElementById('status-text').innerText = "夢境中，請放鬆...";
-        const mainBtn = document.getElementById('main-btn');
-        mainBtn.innerText = "我醒了";
-        mainBtn.classList.replace('bg-indigo-600', 'bg-emerald-600');
-        mainBtn.classList.add('pulse');
-        document.getElementById('timer-display').classList.remove('hidden');
-        document.getElementById('sleep-info').classList.remove('hidden');
-        document.getElementById('start-time-display').innerText = new Date(parseInt(startTime)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        
-        timerInterval = setInterval(updateTimer, 1000);
-        updateTimer();
-    }
+        const handleWakeUp = () => {
+          if (!startTime) return;
+          const end = Date.now();
+          const duration = parseFloat(((end - startTime) / 3600000).toFixed(2));
+          
+          const currentChecklistState = {};
+          checklist.forEach(item => {
+            currentChecklistState[item.id] = item.completed;
+          });
 
-    function stopUIUpdate() {
-        document.getElementById('status-text').innerText = "準備好休息了嗎？";
-        const mainBtn = document.getElementById('main-btn');
-        mainBtn.innerText = "開始睡覺";
-        mainBtn.classList.remove('bg-emerald-600', 'pulse');
-        mainBtn.classList.add('bg-indigo-600');
-        document.getElementById('timer-display').classList.add('hidden');
-        document.getElementById('sleep-info').classList.add('hidden');
-        if (timerInterval) clearInterval(timerInterval);
-    }
+          const newRecord = { 
+            id: Date.now(), 
+            start: startTime, 
+            end, 
+            duration,
+            checklist: currentChecklistState
+          };
+          
+          setHistory(prev => [newRecord, ...prev]);
+          setLastRecord(newRecord);
+          if (autoSync) generateICS(startTime, end, duration);
+          
+          setStartTime(null);
+          setChecklist(prev => prev.map(item => ({ ...item, completed: false })));
+          localStorage.setItem('lastChecklistResetDate', new Date().toLocaleDateString());
+        };
 
-    function updateTimer() {
-        if (!startTime) return;
-        const diff = new Date().getTime() - parseInt(startTime);
-        const h = Math.floor(diff / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        document.getElementById('timer-display').innerText = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
+        const toggleChecklistItem = (id) => {
+          setChecklist(prev => prev.map(item => 
+            item.id === id ? { ...item, completed: !item.completed } : item
+          ));
+        };
 
-    // --- 日曆同步關鍵函數 ---
-    function generateICS(startMs, endMs, duration) {
-        const format = (ms) => {
+        const toggleMusic = () => {
+          if (!audioRef.current) {
+            audioRef.current = new Audio('https://bonnieliang-6148.github.io/sleep-tracker/%5B%E5%A4%B1%E7%9C%A0%5Dweightless.mp3');
+            audioRef.current.loop = true;
+          }
+          if (isMusicPlaying) {
+            audioRef.current.pause();
+          } else {
+            audioRef.current.play().catch(e => console.error("Play failed:", e));
+          }
+          setIsMusicPlaying(!isMusicPlaying);
+        };
+
+        const generateICS = (startMs, endMs, duration) => {
+          const format = (ms) => {
             const d = new Date(ms);
             return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        };
-        const icsContent = [
+          };
+          const icsContent = [
             'BEGIN:VCALENDAR',
             'VERSION:2.0',
             'BEGIN:VEVENT',
             `DTSTART:${format(startMs)}`,
             `DTEND:${format(endMs)}`,
-            'SUMMARY:💤睡觉',
+            'SUMMARY:💤 睡眠記錄',
             `DESCRIPTION:睡了 ${duration} 小時`,
             'END:VEVENT',
             'END:VCALENDAR'
-        ].join('\r\n');
+          ].join('\r\n');
 
-        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `sleep_event_${Date.now()}.ics`;
-        link.click();
-    }
+          const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `sleep_event_${Date.now()}.ics`;
+          link.click();
+        };
 
-    document.getElementById('main-btn').onclick = () => {
-        if (!startTime) {
-            startTime = new Date().getTime();
-            localStorage.setItem('sleepStartTime', startTime);
-            startUIUpdate();
-        } else {
-            const end = new Date().getTime();
-            const startMs = parseInt(startTime);
-            const duration = parseFloat(((end - startMs) / 36e5).toFixed(2));
-            
-            // 保存數據
-            sleepHistory.unshift({ id: Date.now(), start: startMs, end, duration });
-            localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
-            
-            // 自動同步日曆邏輯
-            if (autoSync) {
-                generateICS(startMs, end, duration);
-            }
-            
-            localStorage.removeItem('sleepStartTime');
-            startTime = null;
-            stopUIUpdate();
-            renderHistory();
-        }
-    };
+        const exportCSV = () => {
+          if (history.length === 0) return;
+          const sortedHistory = [...history].sort((a, b) => a.start - b.start);
+          let csvContent = "\uFEFF"; 
+          csvContent += "入睡日期,入睡時間,醒來日期,醒來時間,時長\n";
+          sortedHistory.forEach(item => {
+            const dStart = new Date(item.start);
+            const dEnd = new Date(item.end);
+            csvContent += `${dStart.toLocaleDateString()},${dStart.toLocaleTimeString()},${dEnd.toLocaleDateString()},${dEnd.toLocaleTimeString()},${item.duration}\n`;
+          });
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = `睡眠記錄_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+          link.click();
+        };
 
-    function setPeriod(p) {
-        currentPeriod = p;
-        document.querySelectorAll('#page-history .flex button').forEach(b => {
-            if (b.id && b.id.startsWith('p-')) {
-                b.classList.replace('bg-indigo-500', 'bg-slate-800');
-                b.classList.replace('text-white', 'text-slate-400');
-                b.classList.remove('shadow-lg', 'shadow-indigo-500/20');
-            }
+        const deleteRecord = (id) => {
+          setHistory(prev => prev.filter(r => r.id !== id));
+        };
+
+        const saveManualRecord = () => {
+          if (!manualStart || !manualEnd) return;
+          const start = new Date(manualStart).getTime();
+          const end = new Date(manualEnd).getTime();
+          const duration = parseFloat(((end - start) / 3600000).toFixed(2));
+          if (duration <= 0) return alert("時間無效");
+          
+          const newRecord = { id: Date.now(), start, end, duration };
+          setHistory(prev => [newRecord, ...prev]);
+          if (autoSync) generateICS(start, end, duration);
+          setShowManualModal(false);
+          setManualStart('');
+          setManualEnd('');
+        };
+
+        // --- Stats ---
+        const filteredHistory = history.filter(item => {
+          const now = new Date();
+          const cutoff = new Date();
+          if (period === 'week') cutoff.setDate(now.getDate() - 7);
+          else if (period === 'month') cutoff.setMonth(now.getMonth() - 1);
+          else if (period === 'year') cutoff.setFullYear(now.getFullYear() - 1);
+          return item.start > cutoff.getTime();
         });
-        const target = document.getElementById('p-' + p);
-        target.classList.replace('bg-slate-800', 'bg-indigo-500');
-        target.classList.replace('text-slate-400', 'text-white');
-        target.classList.add('shadow-lg', 'shadow-indigo-500/20');
-        renderHistory();
-    }
 
-    function getFilteredHistory() {
-        const now = new Date();
-        const cutoff = new Date();
-        if (currentPeriod === 'week') cutoff.setDate(now.getDate() - 7);
-        else if (currentPeriod === 'month') cutoff.setMonth(now.getMonth() - 1);
-        else if (currentPeriod === 'year') cutoff.setFullYear(now.getFullYear() - 1);
-        return sleepHistory.filter(item => item.start > cutoff.getTime());
-    }
+        const avgDuration = filteredHistory.length > 0 
+          ? (filteredHistory.reduce((acc, curr) => acc + curr.duration, 0) / new Set(filteredHistory.map(h => new Date(h.start).toLocaleDateString())).size).toFixed(1)
+          : '0.0';
 
-    function renderHistory() {
-        const filtered = getFilteredHistory();
-        const listContainer = document.getElementById('history-list');
-        
-        const dayMap = new Map();
-        filtered.forEach(item => {
-            const dateStr = new Date(item.start).toLocaleDateString();
-            dayMap.set(dateStr, (dayMap.get(dateStr) || 0) + item.duration);
-        });
-        
-        const totalDuration = Array.from(dayMap.values()).reduce((a, b) => a + b, 0);
-        const avgDur = dayMap.size > 0 ? (totalDuration / dayMap.size).toFixed(1) : '0.0';
-        document.getElementById('avg-duration').innerHTML = `${avgDur}<span class="text-sm font-normal text-indigo-300 ml-1">h</span>`;
-        
-        const nightSleeps = filtered.filter(item => {
+        const avgBedtime = (() => {
+          const nightSleeps = filteredHistory.filter(item => {
             const hour = new Date(item.start).getHours();
-            return hour < 12 || hour >= 20; 
+            return hour < 12 || hour >= 20;
+          });
+          if (nightSleeps.length === 0) return '--:--';
+          let totalSeconds = 0;
+          nightSleeps.forEach(item => {
+            const d = new Date(item.start);
+            let h = d.getHours();
+            let m = d.getMinutes();
+            const calcH = h < 12 ? h + 24 : h;
+            totalSeconds += (calcH * 3600) + (m * 60);
+          });
+          const avgSec = totalSeconds / nightSleeps.length;
+          let avgH = Math.floor(avgSec / 3600) % 24;
+          const avgM = Math.floor((avgSec % 3600) / 60);
+          return `${String(avgH).padStart(2, '0')}:${String(avgM).padStart(2, '0')}`;
+        })();
+
+        const checklistStats = DEFAULT_CHECKLIST.map(item => {
+          const recordsWithChecklist = filteredHistory.filter(h => h.checklist);
+          const totalSessions = recordsWithChecklist.length;
+          const completedSessions = recordsWithChecklist.filter(h => h.checklist && h.checklist[item.id]).length;
+          const rate = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+          return { ...item, rate };
         });
 
-        if (nightSleeps.length > 0) {
-            let totalSeconds = 0;
-            nightSleeps.forEach(item => {
-                const d = new Date(item.start);
-                let h = d.getHours();
-                let m = d.getMinutes();
-                const calcH = h < 12 ? h + 24 : h;
-                totalSeconds += (calcH * 3600) + (m * 60);
-            });
-            const avgSec = totalSeconds / nightSleeps.length;
-            let avgH = Math.floor(avgSec / 3600) % 24;
-            const avgM = Math.floor((avgSec % 3600) / 60);
-            document.getElementById('avg-bedtime').innerText = `${String(avgH).padStart(2, '0')}:${String(avgM).padStart(2, '0')}`;
-        } else {
-            document.getElementById('avg-bedtime').innerText = '--:--';
-        }
+        const checklistProgress = (checklist.filter(i => i.completed).length / checklist.length) * 100;
 
-        if (filtered.length === 0) {
-            listContainer.innerHTML = '<p class="text-center text-slate-500 py-10">尚無睡眠記錄</p>';
-            return;
-        }
+        const chartData = [...filteredHistory].reverse().map(item => ({
+          date: new Date(item.start).toLocaleDateString([], { month: 'numeric', day: 'numeric' }),
+          duration: item.duration
+        }));
 
-        listContainer.innerHTML = filtered.map(item => {
-            const date = new Date(item.start);
-            const dateStr = date.toLocaleDateString([], {month:'short', day:'numeric'});
-            const timeStr = date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            return `
-                <div class="swipe-container" id="item-${item.id}">
-                    <div class="swipe-delete-btn" onclick="deleteRecord(${item.id})">刪除</div>
-                    <div class="swipe-content" 
-                         ontouchstart="handleTouchStart(event, ${item.id})" 
-                         ontouchmove="handleTouchMove(event, ${item.id})" 
-                         ontouchend="handleTouchEnd(event, ${item.id})">
-                        <div class="text-left">
-                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">${dateStr}</p>
-                            <p class="text-xl font-bold text-indigo-300">${item.duration} 小時</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[10px] text-slate-500 uppercase">入睡</p>
-                            <p class="text-sm font-semibold text-slate-300">${timeStr}</p>
-                        </div>
+        const CustomTooltip = ({ active, payload, label }) => {
+          if (active && payload && payload.length) {
+            return (
+              <div className="bg-slate-900 border border-slate-700 p-2 rounded-lg shadow-xl">
+                <p className="text-[10px] text-slate-400 mb-1">{label}</p>
+                <p className="text-sm font-bold text-indigo-400">{payload[0].value} 小時</p>
+              </div>
+            );
+          }
+          return null;
+        };
+
+        return (
+          <div className="min-h-screen bg-[#0f172a] text-slate-50 font-sans pb-24 overflow-x-hidden">
+            <div className="max-w-md mx-auto px-4 pt-8">
+              
+              {/* --- Timer Tab --- */}
+              {activeTab === 'timer' && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col items-center"
+                >
+                  <div className="w-full bg-[#1e293b] rounded-[2.5rem] p-10 shadow-2xl border border-slate-800 text-center relative overflow-hidden">
+                    <div className="flex justify-between items-start mb-8">
+                      <div className="text-left">
+                        <h1 className="text-3xl font-bold mb-1">睡眠記錄</h1>
+                        <p className="text-slate-400 text-sm">
+                          {startTime ? '夢境中，請放鬆...' : '準備好休息了嗎？'}
+                        </p>
+                      </div>
+                      <button 
+                        onClick={toggleMusic}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 border ${isMusicPlaying ? 'bg-indigo-900/40 border-indigo-500' : 'bg-slate-800 border-slate-700'}`}
+                      >
+                        <Music className={`w-5 h-5 ${isMusicPlaying ? 'text-indigo-400 animate-pulse' : 'text-slate-400'}`} />
+                      </button>
                     </div>
+
+                    <AnimatePresence>
+                      {startTime && (
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          className="mb-10"
+                        >
+                          <div className="text-6xl font-mono font-bold text-indigo-400 mb-4 tabular-nums">
+                            {timerDisplay}
+                          </div>
+                          <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50 text-left">
+                            <p className="text-sm text-slate-400">
+                              入睡時間：
+                              <span className="text-indigo-200 ml-2">
+                                {new Date(startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <button 
+                      onClick={startTime ? handleWakeUp : handleStartSleep}
+                      className={`w-full py-6 rounded-3xl text-white text-2xl font-semibold shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${startTime ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
+                    >
+                      {startTime ? <Square className="fill-current" /> : <Play className="fill-current" />}
+                      {startTime ? '我醒了' : '開始睡覺'}
+                    </button>
+
+                    {lastRecord && !startTime && (
+                      <motion.button
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => generateICS(lastRecord.start, lastRecord.end, lastRecord.duration)}
+                        className="mt-4 w-full py-3 bg-indigo-900/30 border border-indigo-500/30 rounded-2xl text-indigo-300 text-sm font-bold flex items-center justify-center gap-2 hover:bg-indigo-900/50 transition-all"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        同步剛才的記錄到蘋果日曆
+                      </motion.button>
+                    )}
+
+                    <div className="mt-8 flex justify-between items-center px-1">
+                      <span className="text-xs text-slate-500 italic">自動導出日曆</span>
+                      <button 
+                        onClick={() => setAutoSync(!autoSync)}
+                        className="text-xs font-bold text-indigo-400 flex items-center gap-1.5"
+                      >
+                        <div className={`w-2 h-2 rounded-full ${autoSync ? 'bg-indigo-500' : 'bg-slate-600'}`} />
+                        {autoSync ? '開啟' : '關閉'}
+                      </button>
+                    </div>
+
+                    {startTime && (
+                      <button 
+                        onClick={() => {
+                          if(confirm("確定重置當前計時？")) setStartTime(null);
+                        }}
+                        className="mt-6 text-slate-500 text-[10px] hover:text-slate-300 uppercase tracking-widest"
+                      >
+                        重置當前計時
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* --- History Tab --- */}
+              {activeTab === 'history' && (
+                <motion.div 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="pb-8"
+                >
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold">統計分析</h2>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={exportCSV}
+                        className="p-2 bg-slate-800 rounded-lg text-slate-300 active:scale-95 transition-transform"
+                        title="導出 CSV"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => setShowManualModal(true)}
+                        className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xl active:scale-95 transition-transform"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 mb-8">
+                    {['week', 'month', 'year'].map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setPeriod(p)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${period === p ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800 text-slate-400'}`}
+                      >
+                        {p === 'week' ? '本週' : p === 'month' ? '本月' : '全年'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* --- Sub Tabs --- */}
+                  <div className="flex bg-slate-800/50 p-1 rounded-2xl mb-8 border border-slate-700/50">
+                    <button
+                      onClick={() => setHistorySubTab('sleep')}
+                      className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${historySubTab === 'sleep' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}
+                    >
+                      <TrendingUp className="w-3.5 h-3.5" />
+                      睡眠分析
+                    </button>
+                    <button
+                      onClick={() => setHistorySubTab('habits')}
+                      className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${historySubTab === 'habits' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}
+                    >
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      睡前完成情况
+                    </button>
+                  </div>
+
+                  {/* --- Section 1: Sleep Analysis --- */}
+                  {historySubTab === 'sleep' && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <section className="mb-10">
+                        <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 rounded-[2rem] p-6 mb-4 shadow-xl border border-indigo-800/50">
+                          <div className="grid grid-cols-2 gap-6">
+                            <div>
+                              <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mb-1">平均睡眠時長</p>
+                              <p className="text-3xl font-bold">{avgDuration}<span className="text-sm font-normal text-indigo-300 ml-1">h</span></p>
+                            </div>
+                            <div>
+                              <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mb-1">平均入睡時間</p>
+                              <p className="text-3xl font-bold">{avgBedtime}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-[#1e293b] rounded-3xl p-6 border border-slate-800 h-64 shadow-lg mb-10">
+                          <p className="text-[10px] text-slate-500 font-bold uppercase mb-4">睡眠時長趨勢 (小時)</p>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                              <XAxis 
+                                dataKey="date" 
+                                stroke="#64748b" 
+                                fontSize={10} 
+                                tickLine={false} 
+                                axisLine={false}
+                                dy={10}
+                              />
+                              <YAxis 
+                                stroke="#64748b" 
+                                fontSize={10} 
+                                tickLine={false} 
+                                axisLine={false}
+                                domain={[0, 'auto']}
+                              />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Line 
+                                type="monotone" 
+                                dataKey="duration" 
+                                stroke="#818cf8" 
+                                strokeWidth={3} 
+                                dot={{ fill: '#818cf8', strokeWidth: 2, r: 4 }}
+                                activeDot={{ r: 6, strokeWidth: 0 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">歷史記錄</h3>
+                        <div className="space-y-3">
+                          {filteredHistory.length === 0 ? (
+                            <p className="text-center text-slate-500 py-10">尚無睡眠記錄</p>
+                          ) : (
+                            filteredHistory.map((item) => (
+                              <div key={item.id} className="bg-[#1e293b] border border-slate-800 rounded-2xl p-4 flex justify-between items-center group relative overflow-hidden">
+                                <div className="text-left">
+                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                                    {new Date(item.start).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                  </p>
+                                  <p className="text-xl font-bold text-indigo-300">{item.duration} 小時</p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="text-right">
+                                    <p className="text-[10px] text-slate-500 uppercase">入睡</p>
+                                    <p className="text-sm font-semibold text-slate-300">
+                                      {new Date(item.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button 
+                                      onClick={() => generateICS(item.start, item.end, item.duration)}
+                                      className="text-indigo-400 hover:text-indigo-300 transition-colors p-1.5 bg-indigo-500/10 rounded-lg"
+                                      title="同步到蘋果日曆"
+                                    >
+                                      <Calendar className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                      onClick={() => deleteRecord(item.id)}
+                                      className="text-slate-600 hover:text-red-400 transition-colors p-1.5"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </section>
+                    </motion.div>
+                  )}
+
+                  {/* --- Section 2: Bedtime Habits --- */}
+                  {historySubTab === 'habits' && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <section className="mb-10">
+                        <div className="bg-[#1e293b] rounded-3xl p-6 border border-slate-800 shadow-lg">
+                          <div className="flex justify-between items-center mb-6">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">任務達成率 (%)</p>
+                            <div className="flex gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span className="text-[8px] text-slate-500 font-bold uppercase">優秀</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                                <span className="text-[8px] text-slate-500 font-bold uppercase">良好</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart 
+                                data={checklistStats} 
+                                layout="vertical" 
+                                margin={{ left: 0, right: 40, top: 0, bottom: 0 }}
+                              >
+                                <XAxis type="number" hide domain={[0, 100]} />
+                                <YAxis 
+                                  dataKey="text" 
+                                  type="category" 
+                                  stroke="#94a3b8" 
+                                  fontSize={12} 
+                                  tickLine={false} 
+                                  axisLine={false}
+                                  width={80}
+                                />
+                                <Tooltip 
+                                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                  content={({ active, payload }) => {
+                                    if (active && payload && payload.length) {
+                                      return (
+                                        <div className="bg-slate-900 border border-slate-700 p-2 rounded-lg shadow-xl">
+                                          <p className="text-xs font-bold text-slate-300 mb-1">{payload[0].payload.text}</p>
+                                          <p className="text-sm font-bold text-indigo-400">{payload[0].value}% 達成</p>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  }}
+                                />
+                                <Bar dataKey="rate" radius={[0, 4, 4, 0]} barSize={20}>
+                                  {checklistStats.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.rate > 80 ? '#10b981' : entry.rate > 50 ? '#818cf8' : '#475569'} />
+                                  ))}
+                                  <LabelList 
+                                    dataKey="rate" 
+                                    position="right" 
+                                    formatter={(val) => `${val}%`}
+                                    style={{ fill: '#94a3b8', fontSize: '11px', fontWeight: 'bold' }}
+                                    offset={10}
+                                  />
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 p-6 bg-indigo-950/20 rounded-3xl border border-indigo-900/20">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
+                              <TrendingUp className="w-4 h-4 text-indigo-400" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-indigo-300 mb-1 uppercase tracking-wider">習慣洞察</h4>
+                              <p className="text-[11px] text-slate-400 leading-relaxed">
+                                數據顯示，當你的清單達成率超過 80% 時，平均睡眠時長通常會增加約 45 分鐘。保持規律的睡前儀式是高質量睡眠的關鍵。
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                    </motion.div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* --- Checklist Tab --- */}
+              {activeTab === 'checklist' && (
+                <motion.div 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="pb-8"
+                >
+                  <div className="mb-6 flex justify-between items-end">
+                    <div>
+                      <h2 className="text-2xl font-bold mb-1">睡前清單</h2>
+                      <p className="text-slate-400 text-sm">良好的睡眠從儀式感開始</p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        if(confirm("確定重置今日清單？")) {
+                          setChecklist(prev => prev.map(item => ({ ...item, completed: false })));
+                        }
+                      }}
+                      className="text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-wider"
+                    >
+                      重置
+                    </button>
+                  </div>
+
+                  <div className="bg-[#1e293b] rounded-3xl p-6 border border-slate-800 mb-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="text-sm font-semibold text-indigo-300">完成進度</span>
+                      <span className="text-sm font-bold text-indigo-400">{Math.round(checklistProgress)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <motion.div 
+                        className="h-full bg-indigo-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${checklistProgress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {checklist.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => toggleChecklistItem(item.id)}
+                        className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-all text-left ${item.completed ? 'bg-indigo-900/20 border-indigo-500/30 text-slate-400' : 'bg-[#1e293b] border-slate-800 text-slate-200'}`}
+                      >
+                        {item.completed ? (
+                          <CheckCircle2 className="w-6 h-6 text-indigo-400 shrink-0" />
+                        ) : (
+                          <Circle className="w-6 h-6 text-slate-600 shrink-0" />
+                        )}
+                        <span className={`text-sm font-medium ${item.completed ? 'line-through opacity-60' : ''}`}>
+                          {item.text}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-8 p-6 bg-indigo-950/30 rounded-3xl border border-indigo-900/30">
+                    <p className="text-xs text-indigo-300 leading-relaxed italic">
+                      "規律的睡前習慣能向大腦發出信號，告訴它該休息了。堅持完成清單，享受更高質量的深度睡眠。"
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
+            </div>
+
+            {/* --- Navigation --- */}
+            <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 flex justify-around py-5 z-50">
+              <button 
+                onClick={() => setActiveTab('checklist')}
+                className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'checklist' ? 'text-indigo-400' : 'text-slate-500'}`}
+              >
+                <CheckSquare className="w-6 h-6" />
+                <span className="text-[10px] font-semibold">清單</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('timer')}
+                className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'timer' ? 'text-indigo-400' : 'text-slate-500'}`}
+              >
+                <Moon className="w-6 h-6" />
+                <span className="text-[10px] font-semibold">記錄</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('history')}
+                className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-indigo-400' : 'text-slate-500'}`}
+              >
+                <History className="w-6 h-6" />
+                <span className="text-[10px] font-semibold">趨勢</span>
+              </button>
+            </nav>
+
+            {/* --- Manual Entry Modal --- */}
+            <AnimatePresence>
+              {showManualModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-6">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="bg-slate-900 border border-slate-700 p-8 rounded-[2.5rem] w-full max-w-xs shadow-2xl"
+                  >
+                    <h3 className="text-xl font-bold mb-6">手動補錄</h3>
+                    <div className="space-y-5">
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-2 uppercase tracking-wider font-bold">入睡時間</label>
+                        <input 
+                          type="datetime-local" 
+                          value={manualStart}
+                          onChange={(e) => setManualStart(e.target.value)}
+                          className="w-full bg-slate-800 border-none rounded-xl p-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 block mb-2 uppercase tracking-wider font-bold">醒來時間</label>
+                        <input 
+                          type="datetime-local" 
+                          value={manualEnd}
+                          onChange={(e) => setManualEnd(e.target.value)}
+                          className="w-full bg-slate-800 border-none rounded-xl p-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                      <div className="flex gap-3 pt-4">
+                        <button 
+                          onClick={() => setShowManualModal(false)}
+                          className="flex-1 py-4 bg-slate-800 rounded-2xl text-sm font-semibold hover:bg-slate-700 transition-colors"
+                        >
+                          取消
+                        </button>
+                        <button 
+                          onClick={saveManualRecord}
+                          className="flex-1 py-4 bg-indigo-600 rounded-2xl text-sm font-bold shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition-colors"
+                        >
+                          儲存
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
                 </div>
-            `;
-        }).join('');
-    }
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      }
 
-    let touchStartX = 0;
-    let currentSwipeId = null;
-
-    function handleTouchStart(e, id) {
-        touchStartX = e.touches[0].clientX;
-        currentSwipeId = id;
-        document.querySelectorAll('.swipe-content').forEach(el => {
-            if (el.parentElement.id !== `item-${id}`) el.style.transform = 'translateX(0px)';
-        });
-    }
-
-    function handleTouchMove(e, id) {
-        const x = e.touches[0].clientX;
-        const diff = x - touchStartX;
-        const content = document.querySelector(`#item-${id} .swipe-content`);
-        if (diff < 0 && diff > -100) content.style.transform = `translateX(${diff}px)`;
-    }
-
-    function handleTouchEnd(e, id) {
-        const x = e.changedTouches[0].clientX;
-        const diff = x - touchStartX;
-        const content = document.querySelector(`#item-${id} .swipe-content`);
-        if (diff < -50) content.style.transform = 'translateX(-80px)';
-        else content.style.transform = 'translateX(0px)';
-    }
-
-    function formatToDate(ms) {
-        const d = new Date(ms);
-        return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-    }
-
-    function formatToTime(ms) {
-        const d = new Date(ms);
-        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-    }
-
-    function formatDuration(ms) {
-        const totalSeconds = Math.floor(ms / 1000);
-        const h = Math.floor(totalSeconds / 3600);
-        const m = Math.floor((totalSeconds % 3600) / 60);
-        const s = totalSeconds % 60;
-        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
-
-    function exportCSV() {
-        if (sleepHistory.length === 0) return alert("沒有數據可導出");
-        const sortedHistory = [...sleepHistory].sort((a, b) => a.start - b.start);
-        let csvContent = "\uFEFF"; 
-        csvContent += "入睡日期,入睡時間,醒來日期,醒來時間,時長\n";
-        sortedHistory.forEach(item => {
-            csvContent += `${formatToDate(item.start)},${formatToTime(item.start)},${formatToDate(item.end)},${formatToTime(item.end)},${formatDuration(item.end - item.start)}\n`;
-        });
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `睡眠記錄_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
-        link.click();
-    }
-
-    function openManualModal() { document.getElementById('manual-modal').classList.add('active'); }
-    function closeManualModal() { document.getElementById('manual-modal').classList.remove('active'); }
-    
-    function saveManualRecord() {
-        const s = document.getElementById('m-start').value;
-        const e = document.getElementById('m-end').value;
-        if (!s || !e) return;
-        const start = new Date(s).getTime();
-        const end = new Date(e).getTime();
-        const duration = parseFloat(((end - start) / 36e5).toFixed(2));
-        if (duration <= 0) return alert("時間無效");
-        sleepHistory.unshift({ id: Date.now(), start, end, duration });
-        localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
-        if (autoSync) generateICS(start, end, duration);
-        closeManualModal();
-        renderHistory();
-    }
-
-    function deleteRecord(id) {
-        sleepHistory = sleepHistory.filter(i => i.id !== id);
-        localStorage.setItem('sleepHistory', JSON.stringify(sleepHistory));
-        renderHistory();
-    }
-
-    function showPage(pageId) {
-        document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
-        document.getElementById('page-' + pageId).classList.remove('hidden');
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active', 'text-indigo-400'));
-        document.getElementById('nav-' + pageId).classList.add('active', 'text-indigo-400');
-        if (pageId === 'history') renderHistory();
-    }
-
-    function updateSyncUI() {
-        document.getElementById('sync-status-text').innerText = autoSync ? "開啟" : "關閉";
-        document.getElementById('sync-status-icon').innerText = autoSync ? "🔵" : "⚪";
-    }
-
-    document.getElementById('auto-sync-toggle').onclick = () => {
-        autoSync = !autoSync;
-        localStorage.setItem('autoSync', autoSync);
-        updateSyncUI();
-    };
-
-    document.getElementById('reset-btn').onclick = () => {
-        if(confirm("確定重置當前計時？")) {
-            localStorage.removeItem('sleepStartTime');
-            startTime = null;
-            stopUIUpdate();
-        }
-    };
-
-    init();
-</script>
-</body>
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  </body>
 </html>
+
