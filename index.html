@@ -32,33 +32,76 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide-react@latest/dist/lucide-react.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.454.0/dist/umd/lucide-react.min.js"></script>
     <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
     <script src="https://unpkg.com/framer-motion/dist/framer-motion.js"></script>
+    <script>
+      console.log('Global variables check:');
+      console.log('React:', !!window.React);
+      console.log('lucide:', !!window.lucide);
+      console.log('LucideReact:', !!window.LucideReact);
+      console.log('Recharts:', !!window.Recharts);
+      console.log('FramerMotion:', !!window.FramerMotion);
+    </script>
   </head>
   <body>
     <div id="root"></div>
 
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
-      const { 
-        Moon, History, CheckSquare, Music, Play, Square, Plus, 
-        Download, Trash2, CheckCircle2, Circle, TrendingUp, BarChart3, Calendar 
-      } = LucideReact;
-      const { 
-        LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
-        ResponsiveContainer, BarChart, Bar, Cell, LabelList 
-      } = Recharts;
-      const { motion, AnimatePresence } = FramerMotion;
+      
+      // Extremely robust global variable access
+      const getGlobal = (names) => {
+        for (const name of names) {
+          if (typeof window !== 'undefined' && window[name]) return window[name];
+        }
+        return {};
+      };
 
-      // --- Types ---
-      // (TypeScript interfaces are removed for the JS version, but logic remains)
+      const lucideIcons = getGlobal(['lucide', 'LucideReact', 'Lucide']);
+      const { 
+        Moon = () => null, 
+        History = () => null, 
+        CheckSquare = () => null, 
+        Music = () => null, 
+        Play = () => null, 
+        Square = () => null, 
+        Plus = () => null, 
+        Download = () => null, 
+        Trash2 = () => null, 
+        CheckCircle2 = () => null, 
+        Circle = () => null, 
+        TrendingUp = () => null, 
+        BarChart3 = () => null, 
+        Calendar = () => null 
+      } = lucideIcons;
+
+      const rechartsObj = getGlobal(['Recharts']);
+      const { 
+        LineChart = () => null, 
+        Line = () => null, 
+        XAxis = () => null, 
+        YAxis = () => null, 
+        CartesianGrid = () => null, 
+        Tooltip = () => null, 
+        ResponsiveContainer = ({children}) => <div>{children}</div>, 
+        BarChart = () => null, 
+        Bar = () => null, 
+        Cell = () => null, 
+        LabelList = () => null 
+      } = rechartsObj;
+
+      const motionObj = getGlobal(['FramerMotion', 'Motion']);
+      const { 
+        motion = { div: 'div', button: 'button', span: 'span' }, 
+        AnimatePresence = ({children}) => <>{children}</> 
+      } = motionObj;
 
       const DEFAULT_CHECKLIST = [
         { id: '1', text: '🪥刷牙', completed: false },
-        { id: '2', text: '⏰设定闹钟', completed: false },
-        { id: '3', text: '💡关灯', completed: false },
-        { id: '4', text: '📱放好手机', completed: false },
+        { id: '2', text: '⏰設定鬧鐘', completed: false },
+        { id: '3', text: '💡關燈', completed: false },
+        { id: '4', text: '📱放好手機', completed: false },
       ];
 
       function App() {
@@ -79,7 +122,6 @@
         const audioRef = useRef(null);
         const timerIntervalRef = useRef(null);
 
-        // --- Initialization ---
         useEffect(() => {
           const savedStartTime = localStorage.getItem('sleepStartTime');
           if (savedStartTime) setStartTime(parseInt(savedStartTime));
@@ -101,7 +143,6 @@
           }
         }, []);
 
-        // --- Persistence ---
         useEffect(() => {
           if (startTime) localStorage.setItem('sleepStartTime', startTime.toString());
           else localStorage.removeItem('sleepStartTime');
@@ -119,7 +160,6 @@
           localStorage.setItem('autoSync', autoSync.toString());
         }, [autoSync]);
 
-        // --- Timer Logic ---
         useEffect(() => {
           if (startTime) {
             timerIntervalRef.current = window.setInterval(() => {
@@ -138,7 +178,6 @@
           };
         }, [startTime]);
 
-        // --- Handlers ---
         const handleStartSleep = () => {
           const now = Date.now();
           setStartTime(now);
@@ -250,7 +289,6 @@
           setManualEnd('');
         };
 
-        // --- Stats ---
         const filteredHistory = history.filter(item => {
           const now = new Date();
           const cutoff = new Date();
@@ -315,7 +353,6 @@
           <div className="min-h-screen bg-[#0f172a] text-slate-50 font-sans pb-24 overflow-x-hidden">
             <div className="max-w-md mx-auto px-4 pt-8">
               
-              {/* --- Timer Tab --- */}
               {activeTab === 'timer' && (
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
@@ -406,7 +443,6 @@
                 </motion.div>
               )}
 
-              {/* --- History Tab --- */}
               {activeTab === 'history' && (
                 <motion.div 
                   initial={{ opacity: 0, x: 20 }}
@@ -444,7 +480,6 @@
                     ))}
                   </div>
 
-                  {/* --- Sub Tabs --- */}
                   <div className="flex bg-slate-800/50 p-1 rounded-2xl mb-8 border border-slate-700/50">
                     <button
                       onClick={() => setHistorySubTab('sleep')}
@@ -462,7 +497,6 @@
                     </button>
                   </div>
 
-                  {/* --- Section 1: Sleep Analysis --- */}
                   {historySubTab === 'sleep' && (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
@@ -484,7 +518,7 @@
 
                         <div className="bg-[#1e293b] rounded-3xl p-6 border border-slate-800 h-64 shadow-lg mb-10">
                           <p className="text-[10px] text-slate-500 font-bold uppercase mb-4">睡眠時長趨勢 (小時)</p>
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <LineChart data={chartData}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                               <XAxis 
@@ -559,7 +593,6 @@
                     </motion.div>
                   )}
 
-                  {/* --- Section 2: Bedtime Habits --- */}
                   {historySubTab === 'habits' && (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
@@ -582,7 +615,7 @@
                           </div>
                           
                           <div className="h-64">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                               <BarChart 
                                 data={checklistStats} 
                                 layout="vertical" 
@@ -648,7 +681,6 @@
                 </motion.div>
               )}
 
-              {/* --- Checklist Tab --- */}
               {activeTab === 'checklist' && (
                 <motion.div 
                   initial={{ opacity: 0, x: -20 }}
@@ -715,7 +747,6 @@
 
             </div>
 
-            {/* --- Navigation --- */}
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 flex justify-around py-5 z-50">
               <button 
                 onClick={() => setActiveTab('checklist')}
@@ -740,7 +771,6 @@
               </button>
             </nav>
 
-            {/* --- Manual Entry Modal --- */}
             <AnimatePresence>
               {showManualModal && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-6">
