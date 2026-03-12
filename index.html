@@ -121,6 +121,7 @@
 
         const audioRef = useRef(null);
         const timerIntervalRef = useRef(null);
+        const musicTimerRef = useRef(null);
 
         useEffect(() => {
           const savedStartTime = localStorage.getItem('sleepStartTime');
@@ -175,6 +176,7 @@
           }
           return () => {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            if (musicTimerRef.current) clearTimeout(musicTimerRef.current);
           };
         }, [startTime]);
 
@@ -221,10 +223,23 @@
             audioRef.current = new Audio('https://bonnieliang-6148.github.io/sleep-tracker/%5B%E5%A4%B1%E7%9C%A0%5Dweightless.mp3');
             audioRef.current.loop = true;
           }
+          
           if (isMusicPlaying) {
             audioRef.current.pause();
+            if (musicTimerRef.current) {
+              clearTimeout(musicTimerRef.current);
+              musicTimerRef.current = null;
+            }
           } else {
             audioRef.current.play().catch(e => console.error("Play failed:", e));
+            // 1小時後自動停止 (3600000 毫秒)
+            musicTimerRef.current = window.setTimeout(() => {
+              if (audioRef.current) {
+                audioRef.current.pause();
+                setIsMusicPlaying(false);
+                musicTimerRef.current = null;
+              }
+            }, 3600000);
           }
           setIsMusicPlaying(!isMusicPlaying);
         };
@@ -371,7 +386,11 @@
                         onClick={toggleMusic}
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 border ${isMusicPlaying ? 'bg-indigo-900/40 border-indigo-500' : 'bg-slate-800 border-slate-700'}`}
                       >
-                        <Music className={`w-5 h-5 ${isMusicPlaying ? 'text-indigo-400 animate-pulse' : 'text-slate-400'}`} />
+                        <div className="relative">
+                          <Music className={`w-5 h-5 ${isMusicPlaying ? 'text-indigo-400 animate-pulse' : 'text-slate-400'}`} />
+                          {!isMusicPlaying && <span className="absolute -top-1 -right-1 text-[20px]">🎵</span>}
+                          {isMusicPlaying && <span className="absolute -top-1 -right-1 text-[20px] animate-bounce">🎵</span>}
+                        </div>
                       </button>
                     </div>
 
@@ -451,19 +470,20 @@
                 >
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold">統計分析</h2>
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                       <button 
                         onClick={exportCSV}
-                        className="p-2 bg-slate-800 rounded-lg text-slate-300 active:scale-95 transition-transform"
-                        title="導出 CSV"
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl text-slate-300 active:scale-95 transition-transform text-sm font-medium"
                       >
                         <Download className="w-4 h-4" />
+                        <span>導出</span>
                       </button>
                       <button 
                         onClick={() => setShowManualModal(true)}
-                        className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xl active:scale-95 transition-transform"
+                        className="flex items-center gap-2 px-3 py-2 bg-indigo-600 rounded-xl text-white active:scale-95 transition-transform text-sm font-bold shadow-lg shadow-indigo-600/20"
                       >
-                        <Plus className="w-5 h-5" />
+                        <Plus className="w-4 h-4" />
+                        <span>補錄</span>
                       </button>
                     </div>
                   </div>
@@ -503,7 +523,7 @@
                       animate={{ opacity: 1, y: 0 }}
                     >
                       <section className="mb-10">
-                        <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 rounded-[2rem] p-6 mb-4 shadow-xl border border-indigo-800/50">
+                        <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 rounded-[2rem] p-6 mb-8 shadow-xl border border-indigo-800/50">
                           <div className="grid grid-cols-2 gap-6">
                             <div>
                               <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mb-1">平均睡眠時長</p>
@@ -514,39 +534,6 @@
                               <p className="text-3xl font-bold">{avgBedtime}</p>
                             </div>
                           </div>
-                        </div>
-
-                        <div className="bg-[#1e293b] rounded-3xl p-6 border border-slate-800 h-64 shadow-lg mb-10">
-                          <p className="text-[10px] text-slate-500 font-bold uppercase mb-4">睡眠時長趨勢 (小時)</p>
-                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                            <LineChart data={chartData}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                              <XAxis 
-                                dataKey="date" 
-                                stroke="#64748b" 
-                                fontSize={10} 
-                                tickLine={false} 
-                                axisLine={false}
-                                dy={10}
-                              />
-                              <YAxis 
-                                stroke="#64748b" 
-                                fontSize={10} 
-                                tickLine={false} 
-                                axisLine={false}
-                                domain={[0, 'auto']}
-                              />
-                              <Tooltip content={<CustomTooltip />} />
-                              <Line 
-                                type="monotone" 
-                                dataKey="duration" 
-                                stroke="#818cf8" 
-                                strokeWidth={3} 
-                                dot={{ fill: '#818cf8', strokeWidth: 2, r: 4 }}
-                                activeDot={{ r: 6, strokeWidth: 0 }}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
                         </div>
 
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">歷史記錄</h3>
@@ -747,27 +734,27 @@
 
             </div>
 
-            <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 flex justify-around py-5 z-50">
+            <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-2xl border-t border-slate-800 flex justify-around pt-4 pb-10 z-50">
               <button 
                 onClick={() => setActiveTab('checklist')}
-                className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'checklist' ? 'text-indigo-400' : 'text-slate-500'}`}
+                className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'checklist' ? 'text-indigo-400' : 'text-slate-500'}`}
               >
-                <CheckSquare className="w-6 h-6" />
-                <span className="text-[10px] font-semibold">清單</span>
+                <CheckSquare className={`w-6 h-6 ${activeTab === 'checklist' ? 'scale-110' : ''}`} />
+                <span className="text-sm font-bold">清單</span>
               </button>
               <button 
                 onClick={() => setActiveTab('timer')}
-                className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'timer' ? 'text-indigo-400' : 'text-slate-500'}`}
+                className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'timer' ? 'text-indigo-400' : 'text-slate-500'}`}
               >
-                <Moon className="w-6 h-6" />
-                <span className="text-[10px] font-semibold">記錄</span>
+                <Moon className={`w-6 h-6 ${activeTab === 'timer' ? 'scale-110' : ''}`} />
+                <span className="text-sm font-bold">記錄</span>
               </button>
               <button 
                 onClick={() => setActiveTab('history')}
-                className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-indigo-400' : 'text-slate-500'}`}
+                className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'history' ? 'text-indigo-400' : 'text-slate-500'}`}
               >
-                <History className="w-6 h-6" />
-                <span className="text-[10px] font-semibold">趨勢</span>
+                <History className={`w-6 h-6 ${activeTab === 'history' ? 'scale-110' : ''}`} />
+                <span className="text-sm font-bold">趨勢</span>
               </button>
             </nav>
 
